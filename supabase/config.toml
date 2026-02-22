@@ -1,0 +1,10 @@
+project_id = "roadgoineksrcxakmnhe"
+
+[functions.upload-image]
+verify_jwt = false
+
+[functions.manage-users]
+verify_jwt = false
+
+[functions.mongodb]
+verify_jwt = false
