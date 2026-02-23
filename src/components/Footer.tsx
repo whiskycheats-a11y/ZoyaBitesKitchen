@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Instagram, Phone, Mail, MapPin } from 'lucide-react';
 
@@ -9,7 +9,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10">
           {/* Brand */}
           <div className="md:col-span-2">
-            <Link href="/" className="inline-block mb-4">
+            <Link to="/" className="inline-block mb-4">
               <span className="font-display text-2xl font-bold text-foreground">
                 Zoya<span className="text-gradient-gold">Bites</span>
               </span>
@@ -49,7 +49,7 @@ const Footer = () => {
               ].map(link => (
                 <Link
                   key={link.to}
-                  href={link.to}
+                  to={link.to}
                   className="block text-foreground/30 hover:text-primary text-sm transition-colors duration-300"
                 >
                   {link.label}
