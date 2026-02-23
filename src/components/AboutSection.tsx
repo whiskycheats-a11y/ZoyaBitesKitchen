@@ -67,7 +67,7 @@ const AboutSection = () => {
 
               <div className="space-y-4">
                 {[
-                  { icon: MapPin, title: 'Location', desc: 'Home-based kitchen, delivering across your area' },
+                  { icon: MapPin, title: 'Location', desc: 'Zoyalegal Services, 57, Guru Govind Singh Marg, Maqbool Ganj, Lalkuan, Lucknow, Uttar Pradesh 226001' },
                   { icon: Phone, title: 'Contact', desc: 'WhatsApp par order karein ya call karein' },
                   { icon: Clock, title: 'Timing', desc: '11:00 AM – 10:00 PM (Daily)' },
                 ].map(({ icon: Icon, title, desc }) => (

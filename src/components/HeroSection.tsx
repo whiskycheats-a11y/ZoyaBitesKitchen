@@ -1,11 +1,11 @@
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowRight, UtensilsCrossed, Clock, Truck } from 'lucide-react';
 import heroImage from '@/assets/hero-food.jpg';
 import { useMouseParallax, useScrollReveal, useCountUp } from '@/hooks/useAnimations';
 
 const HeroSection = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const mouse = useMouseParallax(0.01);
   const { setRef: statsRef, isVisible: statsVisible } = useScrollReveal();
   const dishCount = useCountUp(50, 1500, statsVisible);
@@ -73,7 +73,7 @@ const HeroSection = () => {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/menu')}
+              onClick={() => router.push('/menu')}
               className="btn-premium px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl text-sm sm:text-base flex items-center gap-2"
             >
               <span>Order Now</span>
@@ -82,7 +82,7 @@ const HeroSection = () => {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/menu')}
+              onClick={() => router.push('/menu')}
               className="btn-outline-glow px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl text-sm sm:text-base"
             >
               View Menu
