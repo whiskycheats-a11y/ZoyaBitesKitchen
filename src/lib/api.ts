@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export const api = {
   /** Upload image to Cloudinary via edge function */
@@ -11,7 +11,7 @@ export const api = {
       method: 'POST',
       body: formData,
       headers: {
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}`,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
     });
     const data = await res.json();
@@ -25,7 +25,7 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}`,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ amount, order_id: orderId }),
     });
@@ -45,7 +45,7 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}`,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify(payload),
     });
@@ -85,7 +85,7 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}`,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify(payload),
     });
