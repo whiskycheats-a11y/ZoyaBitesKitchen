@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
   signOut as firebaseSignOut,
@@ -10,14 +10,14 @@ import {
 import { auth } from '@/lib/firebase';
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: (FirebaseUser & { id: string; user_metadata: { full_name: string | null } }) | null;
   loading: boolean;
   isAdmin: boolean;
   isSeller: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  setUser: (user: FirebaseUser | null) => void;
+  setUser: (user: (FirebaseUser & { id: string; user_metadata: { full_name: string | null } }) | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +29,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<(FirebaseUser & { id: string; user_metadata: { full_name: string | null } }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
@@ -42,10 +42,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        checkRoles(user);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      const normalizedUser = firebaseUser ? Object.assign(firebaseUser, {
+        id: firebaseUser.uid,
+        user_metadata: { full_name: firebaseUser.displayName }
+      }) : null;
+      setUser(normalizedUser as (FirebaseUser & { id: string; user_metadata: { full_name: string | null } }) | null);
+      if (firebaseUser) {
+        checkRoles(firebaseUser);
       } else {
         setIsAdmin(false);
         setIsSeller(false);
@@ -61,8 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: fullName });
       return { error: null };
-    } catch (err: any) {
-      return { error: err };
+    } catch (err) {
+      return { error: err as Error };
     }
   };
 
@@ -70,8 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return { error: null };
-    } catch (err: any) {
-      return { error: err };
+    } catch (err) {
+      return { error: err as Error };
     }
   };
 

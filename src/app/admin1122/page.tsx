@@ -35,7 +35,7 @@ export default function AdminPage() {
     const [isCodeUser, setIsCodeUser] = useState(false); // true if logged in via temp code
 
     // Access codes
-    const [accessCodes, setAccessCodes] = useState<any[]>([]);
+    const [accessCodes, setAccessCodes] = useState<Tables<'admin_access_codes'>[]>([]);
     const [codeForm, setCodeForm] = useState({ label: '', code: '', hours: '24' });
 
     // Category form
@@ -78,7 +78,12 @@ export default function AdminPage() {
     useEffect(() => {
         if (!adminUnlocked) return;
         setAuthChecked(true);
-        fetchAll();
+        const fetchAllData = () => {
+            fetchCategories();
+            fetchItems();
+            fetchOrders();
+        };
+        fetchAllData();
     }, [adminUnlocked]);
 
     // Realtime orders
@@ -98,8 +103,9 @@ export default function AdminPage() {
             const data = await api.uploadImage(file);
             toast.success('Photo uploaded!');
             return data.url;
-        } catch (err: any) {
-            toast.error(err.message || 'Upload failed');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Upload failed';
+            toast.error(message);
             return null;
         } finally {
             setUploading(false);

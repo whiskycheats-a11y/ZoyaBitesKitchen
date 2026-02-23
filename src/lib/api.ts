@@ -76,10 +76,10 @@ export const api = {
     action: 'find' | 'findOne' | 'insertOne' | 'insertMany' | 'updateOne' | 'deleteOne' | 'deleteMany' | 'count';
     database: string;
     collection: string;
-    document?: any;
-    filter?: Record<string, any>;
-    update?: Record<string, any>;
-    options?: Record<string, any>;
+    document?: unknown;
+    filter?: Record<string, unknown>;
+    update?: Record<string, unknown>;
+    options?: Record<string, unknown>;
   }) => {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/mongodb`, {
       method: 'POST',

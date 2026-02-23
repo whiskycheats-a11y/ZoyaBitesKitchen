@@ -21,7 +21,7 @@ const DELIVERY_CHARGE = 40;
 
 declare global {
     interface Window {
-        Razorpay: any;
+        Razorpay: unknown;
     }
 }
 
@@ -66,7 +66,7 @@ export default function CheckoutPage() {
         if (items.length === 0) { router.push('/cart'); return; }
         fetchAddresses();
         loadRazorpayScript();
-    }, [user]);
+    }, [user, items.length, router]);
 
     const saveNewAddress = async () => {
         if (!user) return;
@@ -135,13 +135,13 @@ export default function CheckoutPage() {
                     name: user.user_metadata?.full_name || '',
                 },
                 theme: { color: '#c4873b' },
-                handler: async (response: any) => {
+                handler: async (response: Record<string, string>) => {
                     // 5. Verify payment via backend
                     try {
                         await api.verifyRazorpayPayment({
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature,
+                            razorpay_order_id: response['razorpay_order_id'],
+                            razorpay_payment_id: response['razorpay_payment_id'],
+                            razorpay_signature: response['razorpay_signature'],
                             order_id: order.id,
                         });
 
@@ -162,11 +162,13 @@ export default function CheckoutPage() {
                 },
             };
 
-            const rzp = new window.Razorpay(options);
+            const RZP = window.Razorpay as any;
+            const rzp = new RZP(options);
             rzp.open();
             setLoading(false);
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to place order');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to place order';
+            toast.error(message);
             setLoading(false);
         }
     };

@@ -39,8 +39,9 @@ function AuthContent() {
                 if (error) throw error;
                 toast.success('Account created! Please check your email to verify.');
             }
-        } catch (err: any) {
-            toast.error(err.message || 'Something went wrong');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Something went wrong';
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -93,8 +94,9 @@ function AuthContent() {
                                 toast.success('Welcome!');
                                 router.push(redirect ? `/${redirect}` : '/');
                             }}
-                            onError={(err: any) => {
-                                toast.error(err.message || 'Google sign-in failed');
+                            onError={(err) => {
+                                const message = err instanceof Error ? err.message : 'Google sign-in failed';
+                                toast.error(message);
                             }}
                         />
 

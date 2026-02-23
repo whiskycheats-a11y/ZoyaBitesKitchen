@@ -3,8 +3,8 @@ import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { Chrome } from "lucide-react";
 
 interface GoogleSignInButtonProps {
-  onSuccess?: (user: any) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (user: unknown) => void;
+  onError?: (error: unknown) => void;
 }
 
 export const GoogleSignInButton = ({ onSuccess, onError }: GoogleSignInButtonProps) => {
