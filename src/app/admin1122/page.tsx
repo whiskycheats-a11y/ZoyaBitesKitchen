@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
@@ -12,14 +11,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Loader2, Plus, Pencil, Trash2, Package, Upload, ImageIcon, Users, ShieldCheck, ShieldOff, Lock, ChefHat, ShoppingBag, LayoutGrid, TrendingUp, IndianRupee, Clock, CheckCircle2, Key, Copy, CalendarClock } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
 import { api } from '@/lib/api';
 
-type Category = Tables<'menu_categories'>;
-type FoodItem = Tables<'food_items'>;
-type Order = Tables<'orders'>;
+const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'http://localhost:5000';
+
+type Category = { _id: string; name: string; description?: string; image_url?: string; };
+type FoodItem = { _id: string; name: string; description?: string; price: number; category_id: string; image_url?: string; is_veg?: boolean; is_available?: boolean; };
+type Order = { _id: string; status: string; paymentStatus?: string; totalAmount: number; createdAt: string; delivery_address?: string; deliveryAddress?: string; notes?: string; items?: any[]; };
 
 const ADMIN_PASSWORD = 'henakhan@@@2050';
+
+const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+});
 
 export default function AdminPage() {
     const { user, isAdmin, isSeller, loading: authLoading } = useAuth();
@@ -32,10 +37,10 @@ export default function AdminPage() {
     const [items, setItems] = useState<FoodItem[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isCodeUser, setIsCodeUser] = useState(false); // true if logged in via temp code
+    const [isCodeUser, setIsCodeUser] = useState(false);
 
     // Access codes
-    const [accessCodes, setAccessCodes] = useState<Tables<'admin_access_codes'>[]>([]);
+    const [accessCodes, setAccessCodes] = useState<any[]>([]);
     const [codeForm, setCodeForm] = useState({ label: '', code: '', hours: '24' });
 
     // Category form
@@ -54,18 +59,18 @@ export default function AdminPage() {
     const catFileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchCategories = async () => {
-        const { data } = await supabase.from('menu_categories').select('*').order('sort_order');
-        if (data) setCategories(data);
+        const res = await fetch(`${API_URL}/api/categories`, { headers: getHeaders() });
+        if (res.ok) setCategories(await res.json());
     };
 
     const fetchItems = async () => {
-        const { data } = await supabase.from('food_items').select('*').order('sort_order');
-        if (data) setItems(data);
+        const res = await fetch(`${API_URL}/api/products`, { headers: getHeaders() });
+        if (res.ok) setItems(await res.json());
     };
 
     const fetchOrders = async () => {
-        const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-        if (data) setOrders(data);
+        const res = await fetch(`${API_URL}/api/orders/all`, { headers: getHeaders() });
+        if (res.ok) setOrders(await res.json());
     };
 
     const fetchAll = async () => {
@@ -78,24 +83,10 @@ export default function AdminPage() {
     useEffect(() => {
         if (!adminUnlocked) return;
         setAuthChecked(true);
-        const fetchAllData = () => {
-            fetchCategories();
-            fetchItems();
-            fetchOrders();
-        };
-        fetchAllData();
+        fetchAll();
+        const interval = setInterval(fetchOrders, 30000);
+        return () => clearInterval(interval);
     }, [adminUnlocked]);
-
-    // Realtime orders
-    useEffect(() => {
-        const channel = supabase
-            .channel('admin-orders')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                fetchOrders();
-            })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
-    }, []);
 
     const uploadImage = async (file: File): Promise<string | null> => {
         setUploading(true);
@@ -104,8 +95,7 @@ export default function AdminPage() {
             toast.success('Photo uploaded!');
             return data.url;
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Upload failed';
-            toast.error(message);
+            toast.error(err instanceof Error ? err.message : 'Upload failed');
             return null;
         } finally {
             setUploading(false);
@@ -115,102 +105,81 @@ export default function AdminPage() {
     // Category CRUD
     const saveCategory = async () => {
         if (!catForm.name.trim()) { toast.error('Category name required'); return; }
-        if (editingCat) {
-            const { error } = await supabase.from('menu_categories').update(catForm).eq('id', editingCat);
-            if (error) { toast.error(error.message); return; }
-            toast.success('Category updated');
-        } else {
-            const { error } = await supabase.from('menu_categories').insert(catForm);
-            if (error) { toast.error(error.message); return; }
-            toast.success('Category added');
-        }
+        const url = editingCat ? `${API_URL}/api/categories/${editingCat}` : `${API_URL}/api/categories`;
+        const method = editingCat ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: getHeaders(), body: JSON.stringify(catForm) });
+        if (!res.ok) { toast.error((await res.json()).error || 'Error'); return; }
+        toast.success(editingCat ? 'Category updated' : 'Category added');
         setCatForm({ name: '', description: '', image_url: '' });
         setEditingCat(null);
         fetchCategories();
     };
 
     const deleteCategory = async (id: string) => {
-        const { error } = await supabase.from('menu_categories').delete().eq('id', id);
-        if (error) { toast.error(error.message); return; }
+        const res = await fetch(`${API_URL}/api/categories/${id}`, { method: 'DELETE', headers: getHeaders() });
+        if (!res.ok) { toast.error('Failed to delete'); return; }
         toast.success('Category deleted');
-        fetchCategories();
-        fetchItems();
+        fetchCategories(); fetchItems();
     };
 
     // Item CRUD
     const saveItem = async () => {
         if (!itemForm.name.trim() || !itemForm.category_id) {
-            toast.error('Name and category are required');
-            return;
+            toast.error('Name and category are required'); return;
         }
 
         if (hasVariants) {
-            if (!halfPrice || !fullPrice) {
-                toast.error('Both Half and Full prices are required');
-                return;
-            }
-            // Save two items: Name (Half) and Name (Full)
+            if (!halfPrice || !fullPrice) { toast.error('Both Half and Full prices are required'); return; }
             const baseName = itemForm.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
             const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
 
             if (editingItem) {
-                // Find existing variants
                 const existingVariants = items.filter(i =>
                     i.category_id === itemForm.category_id &&
                     i.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() === baseName
                 );
                 const halfItem = existingVariants.find(i => i.name.includes('(Half)'));
                 const fullItem = existingVariants.find(i => i.name.includes('(Full)'));
-
                 if (halfItem) {
-                    await supabase.from('food_items').update({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) }).eq('id', halfItem.id);
+                    await fetch(`${API_URL}/api/products/${halfItem._id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) }) });
                 } else {
-                    await supabase.from('food_items').insert({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) });
+                    await fetch(`${API_URL}/api/products`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) }) });
                 }
                 if (fullItem) {
-                    await supabase.from('food_items').update({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) }).eq('id', fullItem.id);
+                    await fetch(`${API_URL}/api/products/${fullItem._id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) }) });
                 } else {
-                    await supabase.from('food_items').insert({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) });
+                    await fetch(`${API_URL}/api/products`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) }) });
                 }
                 toast.success('Item updated with variants');
             } else {
-                const { error: e1 } = await supabase.from('food_items').insert({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) });
-                const { error: e2 } = await supabase.from('food_items').insert({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) });
-                if (e1 || e2) { toast.error(e1?.message || e2?.message || 'Error'); return; }
+                const [r1, r2] = await Promise.all([
+                    fetch(`${API_URL}/api/products`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) }) }),
+                    fetch(`${API_URL}/api/products`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) }) }),
+                ]);
+                if (!r1.ok || !r2.ok) { toast.error('Error adding variants'); return; }
                 toast.success('Item added with Half/Full variants');
             }
         } else {
             if (!itemForm.price) { toast.error('Price is required'); return; }
             const payload = { ...itemForm, price: parseFloat(itemForm.price) };
-            if (editingItem) {
-                const { error } = await supabase.from('food_items').update(payload).eq('id', editingItem);
-                if (error) { toast.error(error.message); return; }
-                toast.success('Item updated');
-            } else {
-                const { error } = await supabase.from('food_items').insert(payload);
-                if (error) { toast.error(error.message); return; }
-                toast.success('Item added');
-            }
+            const url = editingItem ? `${API_URL}/api/products/${editingItem}` : `${API_URL}/api/products`;
+            const method = editingItem ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: getHeaders(), body: JSON.stringify(payload) });
+            if (!res.ok) { toast.error((await res.json()).error || 'Error'); return; }
+            toast.success(editingItem ? 'Item updated' : 'Item added');
         }
         setItemForm({ name: '', description: '', price: '', category_id: '', image_url: '', is_veg: true, is_available: true });
-        setHasVariants(false);
-        setHalfPrice('');
-        setFullPrice('');
-        setEditingItem(null);
-        setShowItemForm(false);
+        setHasVariants(false); setHalfPrice(''); setFullPrice('');
+        setEditingItem(null); setShowItemForm(false);
         fetchItems();
     };
 
     const deleteItem = async (id: string) => {
-        const { error } = await supabase.from('food_items').delete().eq('id', id);
-        if (error) {
-            if (error.code === '23503') {
-                toast.error('Item has orders and cannot be deleted. Deactivating it instead.');
-                await supabase.from('food_items').update({ is_available: false }).eq('id', id);
-                fetchItems();
-            } else {
-                toast.error(error.message);
-            }
+        const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE', headers: getHeaders() });
+        if (!res.ok) {
+            toast.error('Item has orders. Deactivating instead.');
+            await fetch(`${API_URL}/api/products/${id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ is_available: false }) });
+            fetchItems();
             return;
         }
         toast.success('Item deleted');
@@ -218,77 +187,64 @@ export default function AdminPage() {
     };
 
     const updateOrderStatus = async (orderId: string, status: string) => {
-        const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-        if (error) toast.error(error.message);
+        const res = await fetch(`${API_URL}/api/orders/${orderId}/status`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ status }) });
+        if (!res.ok) toast.error('Failed');
         else { toast.success(`Order ${status}`); fetchOrders(); }
     };
 
     const deleteOrder = async (orderId: string) => {
-        const { error: itemsErr } = await supabase.from('order_items').delete().eq('order_id', orderId);
-        if (itemsErr) { toast.error(itemsErr.message); return; }
-        const { error } = await supabase.from('orders').delete().eq('id', orderId);
-        if (error) { toast.error(error.message); return; }
+        const res = await fetch(`${API_URL}/api/orders/${orderId}`, { method: 'DELETE', headers: getHeaders() });
+        if (!res.ok) { toast.error('Failed to delete'); return; }
         toast.success('Order deleted');
         fetchOrders();
     };
 
     const handleAdminLogin = async () => {
         if (adminPass === ADMIN_PASSWORD) {
-            setAdminUnlocked(true);
-            setIsCodeUser(false);
-            setPassError(false);
-            return;
+            setAdminUnlocked(true); setIsCodeUser(false); setPassError(false); return;
         }
-        const { data } = await supabase
-            .from('admin_access_codes')
-            .select('*')
-            .eq('code', adminPass)
-            .eq('is_active', true)
-            .gt('expires_at', new Date().toISOString())
-            .limit(1);
-        if (data && data.length > 0) {
-            setAdminUnlocked(true);
-            setIsCodeUser(true);
-            setPassError(false);
-        } else {
+        try {
+            const res = await fetch(`${API_URL}/api/admin/verify-code`, {
+                method: 'POST', headers: getHeaders(), body: JSON.stringify({ code: adminPass })
+            });
+            if (res.ok) {
+                setAdminUnlocked(true); setIsCodeUser(true); setPassError(false);
+            } else {
+                setPassError(true);
+            }
+        } catch {
             setPassError(true);
         }
     };
 
     // Access code CRUD
     const fetchAccessCodes = async () => {
-        const { data } = await supabase.from('admin_access_codes').select('*').order('created_at', { ascending: false });
-        if (data) setAccessCodes(data);
+        const res = await fetch(`${API_URL}/api/admin/access-codes`, { headers: getHeaders() });
+        if (res.ok) setAccessCodes(await res.json());
     };
 
     const saveAccessCode = async () => {
-        if (!codeForm.label.trim() || !codeForm.code.trim()) {
-            toast.error('Label and code are required');
-            return;
-        }
+        if (!codeForm.label.trim() || !codeForm.code.trim()) { toast.error('Label and code are required'); return; }
         const hours = parseInt(codeForm.hours) || 24;
         const expires_at = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
-        const { error } = await supabase.from('admin_access_codes').insert({
-            label: codeForm.label,
-            code: codeForm.code,
-            expires_at,
+        const res = await fetch(`${API_URL}/api/admin/access-codes`, {
+            method: 'POST', headers: getHeaders(), body: JSON.stringify({ label: codeForm.label, code: codeForm.code, expires_at })
         });
-        if (error) { toast.error(error.message); return; }
+        if (!res.ok) { toast.error('Failed'); return; }
         toast.success('Access code created!');
         setCodeForm({ label: '', code: '', hours: '24' });
         fetchAccessCodes();
     };
 
     const deleteAccessCode = async (id: string) => {
-        const { error } = await supabase.from('admin_access_codes').delete().eq('id', id);
-        if (error) { toast.error(error.message); return; }
+        const res = await fetch(`${API_URL}/api/admin/access-codes/${id}`, { method: 'DELETE', headers: getHeaders() });
+        if (!res.ok) { toast.error('Failed'); return; }
         toast.success('Code deleted');
         fetchAccessCodes();
     };
 
     const toggleCodeActive = async (id: string, active: boolean) => {
-        const { error } = await supabase.from('admin_access_codes').update({ is_active: !active }).eq('id', id);
-        if (error) { toast.error(error.message); return; }
+        await fetch(`${API_URL}/api/admin/access-codes/${id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ is_active: !active }) });
         fetchAccessCodes();
     };
 
@@ -339,7 +295,7 @@ export default function AdminPage() {
     }
 
     const pendingOrders = orders.filter(o => o.status === 'pending').length;
-    const totalRevenue = orders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + o.total_amount, 0);
+    const totalRevenue = orders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + o.totalAmount, 0);
 
     const stats = [
         { icon: ChefHat, label: 'Menu Items', value: items.length, color: 'text-primary', bg: 'bg-primary/10 border-primary/20' },
@@ -434,7 +390,7 @@ export default function AdminPage() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {categories.map(cat => (
-                                <div key={cat.id} className="flex items-center gap-3 bg-card rounded-xl p-4 border border-border/50 hover:border-primary/20 transition-colors">
+                                <div key={cat._id} className="flex items-center gap-3 bg-card rounded-xl p-4 border border-border/50 hover:border-primary/20 transition-colors">
                                     {cat.image_url ? (
                                         <img src={cat.image_url} alt={cat.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
                                     ) : (
@@ -445,10 +401,10 @@ export default function AdminPage() {
                                         <p className="text-xs text-muted-foreground truncate">{cat.description || 'No description'}</p>
                                     </div>
                                     <div className="flex gap-1.5 shrink-0">
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => { setEditingCat(cat.id); setCatForm({ name: cat.name, description: cat.description || '', image_url: cat.image_url || '' }); }}>
+                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => { setEditingCat(cat._id); setCatForm({ name: cat.name, description: cat.description || '', image_url: cat.image_url || '' }); }}>
                                             <Pencil className="w-3.5 h-3.5" />
                                         </Button>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteCategory(cat.id)}>
+                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteCategory(cat._id)}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>
                                     </div>
@@ -495,7 +451,7 @@ export default function AdminPage() {
                                         <Label className="text-xs text-muted-foreground font-sans">Category *</Label>
                                         <select value={itemForm.category_id} onChange={e => setItemForm(p => ({ ...p, category_id: e.target.value }))} className="w-full h-11 mt-1 rounded-xl border border-input bg-muted/30 px-3 text-sm">
                                             <option value="">Select category</option>
-                                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                                         </select>
                                     </div>
                                     <div>
@@ -537,7 +493,7 @@ export default function AdminPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                             {items.map(item => (
-                                <div key={item.id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
+                                <div key={item._id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
                                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0">
                                         {item.image_url ? (
                                             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -554,7 +510,7 @@ export default function AdminPage() {
                                                 <span className="w-3.5 h-3.5 rounded-sm border-2 border-red-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-0.5">₹{item.price} · {categories.find(c => c.id === item.category_id)?.name || 'N/A'}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">₹{item.price} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}</p>
                                         {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
                                     </div>
                                     <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -568,7 +524,7 @@ export default function AdminPage() {
                                             ) : [];
                                             const halfItem = matchingVariants.find(v => v.name.includes('(Half)'));
                                             const fullItem = matchingVariants.find(v => v.name.includes('(Full)'));
-                                            setEditingItem(item.id);
+                                            setEditingItem(item._id);
                                             setItemForm({ name: isVariant ? baseName : item.name, description: item.description || '', price: isVariant ? '' : String(item.price), category_id: item.category_id, image_url: item.image_url || '', is_veg: item.is_veg ?? true, is_available: item.is_available ?? true });
                                             setHasVariants(isVariant && matchingVariants.length > 1);
                                             setHalfPrice(halfItem ? String(halfItem.price) : '');
@@ -577,7 +533,7 @@ export default function AdminPage() {
                                         }}>
                                             <Pencil className="w-3.5 h-3.5" />
                                         </Button>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteItem(item.id)}>
+                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteItem(item._id)}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>
                                     </div>
@@ -595,7 +551,7 @@ export default function AdminPage() {
                                 <p className="text-muted-foreground text-sm">No orders yet</p>
                             </div>
                         ) : orders.map(order => (
-                            <div key={order.id} className="bg-card rounded-xl p-4 sm:p-5 border border-border/50 hover:border-primary/10 transition-colors">
+                            <div key={order._id} className="bg-card rounded-xl p-4 sm:p-5 border border-border/50 hover:border-primary/10 transition-colors">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${order.status === 'delivered' ? 'bg-green-500/10 border border-green-500/20' :
@@ -607,12 +563,12 @@ export default function AdminPage() {
                                                     <Clock className="w-5 h-5 text-primary" />}
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-sm">#{order.id.slice(0, 8)}</p>
-                                            <p className="text-[11px] text-muted-foreground">{new Date(order.created_at).toLocaleString('en-IN')}</p>
+                                            <p className="font-semibold text-sm">#{order._id.slice(-8)}</p>
+                                            <p className="text-[11px] text-muted-foreground">{new Date(order.createdAt).toLocaleString('en-IN')}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-lg font-bold text-primary">₹{order.total_amount}</span>
+                                        <span className="text-lg font-bold text-primary">₹{order.totalAmount}</span>
                                         <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg ${order.status === 'delivered' ? 'bg-green-500/10 text-green-400 font-sans' :
                                             order.status === 'cancelled' ? 'bg-red-500/10 text-red-400 font-sans' :
                                                 order.status === 'preparing' ? 'bg-blue-500/10 text-blue-400 font-sans' :
@@ -628,7 +584,7 @@ export default function AdminPage() {
                                             key={s}
                                             size="sm"
                                             variant={order.status === s ? 'default' : 'outline'}
-                                            onClick={() => updateOrderStatus(order.id, s)}
+                                            onClick={() => updateOrderStatus(order._id, s)}
                                             className={`capitalize text-[11px] h-7 px-2.5 rounded-lg ${order.status === s ? 'shadow-sm' : ''} font-sans`}
                                         >
                                             {s.replace(/_/g, ' ')}
@@ -638,7 +594,7 @@ export default function AdminPage() {
                                         size="sm"
                                         variant="ghost"
                                         className="text-destructive hover:bg-destructive/10 ml-auto h-7 px-2.5 rounded-lg text-[11px] font-sans"
-                                        onClick={() => { if (confirm('Delete this order?')) deleteOrder(order.id); }}
+                                        onClick={() => { if (confirm('Delete this order?')) deleteOrder(order._id); }}
                                     >
                                         <Trash2 className="w-3 h-3 mr-1" /> Delete
                                     </Button>
@@ -679,7 +635,7 @@ export default function AdminPage() {
                                 const expired = new Date(ac.expires_at) < new Date();
                                 const active = ac.is_active && !expired;
                                 return (
-                                    <div key={ac.id} className={`bg-card rounded-xl p-4 border transition-colors ${active ? 'border-primary/20' : 'border-border/50 opacity-60'}`}>
+                                    <div key={ac._id} className={`bg-card rounded-xl p-4 border transition-colors ${active ? 'border-primary/20' : 'border-border/50 opacity-60'}`}>
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
                                                 <h3 className="font-semibold text-sm truncate">{ac.label}</h3>
@@ -701,10 +657,10 @@ export default function AdminPage() {
                                                     }`}>{active ? 'Active' : expired ? 'Expired' : 'Disabled'}</span>
                                             </div>
                                             <div className="flex flex-col gap-1.5 shrink-0">
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => toggleCodeActive(ac.id, ac.is_active)}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => toggleCodeActive(ac._id, ac.is_active)}>
                                                     {ac.is_active ? <ShieldOff className="w-3.5 h-3.5" /> : <ShieldCheck className="w-3.5 h-3.5" />}
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteAccessCode(ac.id)}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteAccessCode(ac._id)}>
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </Button>
                                             </div>
