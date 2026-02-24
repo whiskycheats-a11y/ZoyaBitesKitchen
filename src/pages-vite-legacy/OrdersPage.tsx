@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Loader2, Package, Clock, CheckCircle, XCircle, Truck, ChefHat, ThumbsUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Tables } from '@/integrations/supabase/types';
 
-type Order = Tables<'orders'>;
-type OrderItem = Tables<'order_items'>;
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 const allStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 
@@ -23,45 +20,33 @@ const statusConfig: Record<string, { icon: any; color: string; label: string }> 
 
 const OrdersPage = () => {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<(Order & { items: OrderItem[] })[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchOrders = async () => {
     if (!user) return;
-    const { data: ordersData } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (ordersData) {
-      const withItems = await Promise.all(
-        ordersData.map(async (order) => {
-          const { data: itemsData } = await supabase
-            .from('order_items')
-            .select('*')
-            .eq('order_id', order.id);
-          return { ...order, items: itemsData || [] };
-        })
-      );
-      setOrders(withItems);
+    try {
+      const res = await fetch(`${API_URL}/api/orders`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error('Fetch orders error', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (!user) return;
     fetchOrders();
-
-    // Realtime updates for order status
-    const channel = supabase
-      .channel('my-orders')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-        setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new as Order } : o));
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const interval = setInterval(fetchOrders, 30000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const getStatus = (status: string) => statusConfig[status] || statusConfig.pending;
@@ -105,11 +90,10 @@ const OrdersPage = () => {
                       <p className="font-semibold text-sm sm:text-base">Order #{order.id.slice(0, 8)}</p>
                       <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                    <span className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${
-                      isCancelled ? 'bg-red-500/10 text-red-500' :
-                      order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
-                      'bg-primary/10 text-primary'
-                    }`}>
+                    <span className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${isCancelled ? 'bg-red-500/10 text-red-500' :
+                        order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
+                          'bg-primary/10 text-primary'
+                      }`}>
                       <Icon className="w-4 h-4" /> {st.label}
                     </span>
                   </div>
@@ -117,7 +101,7 @@ const OrdersPage = () => {
                   {/* Tracking Stepper */}
                   {!isCancelled && (
                     <div className="mb-6">
-                    <div className="flex items-center justify-between relative px-2 sm:px-0">
+                      <div className="flex items-center justify-between relative px-2 sm:px-0">
                         {/* Progress line */}
                         <div className="absolute top-3 sm:top-4 left-4 right-4 sm:left-0 sm:right-0 h-0.5 bg-muted" />
                         <div
@@ -135,17 +119,15 @@ const OrdersPage = () => {
                               <motion.div
                                 animate={isCurrent ? { scale: [1, 1.15, 1] } : {}}
                                 transition={{ duration: 1.5, repeat: Infinity }}
-                                className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                                  isActive
+                                className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all ${isActive
                                     ? 'bg-primary border-primary text-primary-foreground'
                                     : 'bg-card border-muted text-muted-foreground'
-                                }`}
+                                  }`}
                               >
                                 <SIcon className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
                               </motion.div>
-                              <span className={`text-[8px] sm:text-[10px] mt-1 sm:mt-1.5 font-medium text-center leading-tight max-w-[3rem] sm:max-w-none ${
-                                isActive ? 'text-foreground' : 'text-muted-foreground'
-                              }`}>
+                              <span className={`text-[8px] sm:text-[10px] mt-1 sm:mt-1.5 font-medium text-center leading-tight max-w-[3rem] sm:max-w-none ${isActive ? 'text-foreground' : 'text-muted-foreground'
+                                }`}>
                                 {sConfig.label}
                               </span>
                             </div>

@@ -1,32 +1,29 @@
-import { supabase } from '@/integrations/supabase/client';
+const API_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
+});
 
 export const api = {
-  /** Upload image to Cloudinary via edge function */
+  /** Upload image to Cloudinary via backend */
   uploadImage: async (file: File): Promise<{ url: string }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/upload-image`, {
+    const res = await fetch(`${API_URL}/api/upload-image`, {
       method: 'POST',
       body: formData,
-      headers: {
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data;
   },
 
-  /** Create Razorpay order via edge function */
+  /** Create Razorpay order via backend */
   createRazorpayOrder: async (amount: number, orderId: string) => {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-razorpay-order`, {
+    const res = await fetch(`${API_URL}/api/create-razorpay-order`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: getHeaders(),
       body: JSON.stringify({ amount, order_id: orderId }),
     });
     const data = await res.json();
@@ -34,19 +31,16 @@ export const api = {
     return data;
   },
 
-  /** Verify Razorpay payment via edge function */
+  /** Verify Razorpay payment via backend */
   verifyRazorpayPayment: async (payload: {
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
     order_id: string;
   }) => {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-razorpay-payment`, {
+    const res = await fetch(`${API_URL}/api/verify-razorpay-payment`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -54,43 +48,92 @@ export const api = {
     return data;
   },
 
-  /** Manage users (admin) via edge function */
-  manageUsers: async (body: { action: string; user_id?: string; role?: string }) => {
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-    if (!token) throw new Error('Not authenticated');
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-users`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
+  /** Categories CRUD */
+  getCategories: async () => {
+    const res = await fetch(`${API_URL}/api/categories`);
+    return res.json();
+  },
+  saveCategory: async (id: string | null, data: any) => {
+    const res = await fetch(id ? `${API_URL}/api/categories/${id}` : `${API_URL}/api/categories`, {
+      method: id ? 'PUT' : 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
-    return data;
+    return res.json();
+  },
+  deleteCategory: async (id: string) => {
+    const res = await fetch(`${API_URL}/api/categories/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return res.json();
   },
 
-  /** MongoDB CRUD operations via edge function */
-  mongodb: async (payload: {
-    action: 'find' | 'findOne' | 'insertOne' | 'insertMany' | 'updateOne' | 'deleteOne' | 'deleteMany' | 'count';
-    database: string;
-    collection: string;
-    document?: unknown;
-    filter?: Record<string, unknown>;
-    update?: Record<string, unknown>;
-    options?: Record<string, unknown>;
-  }) => {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/mongodb`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify(payload),
+  /** Products CRUD */
+  getProducts: async () => {
+    const res = await fetch(`${API_URL}/api/products`);
+    return res.json();
+  },
+  saveProduct: async (id: string | null, data: any) => {
+    const res = await fetch(id ? `${API_URL}/api/products/${id}` : `${API_URL}/api/products`, {
+      method: id ? 'PUT' : 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'MongoDB request failed');
-    return data;
+    return res.json();
+  },
+  deleteProduct: async (id: string) => {
+    const res = await fetch(`${API_URL}/api/products/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+
+  /** Orders Management */
+  getAdminOrders: async () => {
+    const res = await fetch(`${API_URL}/api/admin/orders`, {
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  updateOrderStatus: async (id: string, status: string) => {
+    const res = await fetch(`${API_URL}/api/admin/orders/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    return res.json();
+  },
+
+  /** Access Codes */
+  getAccessCodes: async () => {
+    const res = await fetch(`${API_URL}/api/admin/access-codes`, {
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  saveAccessCode: async (data: any) => {
+    const res = await fetch(`${API_URL}/api/admin/access-codes`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  deleteAccessCode: async (id: string) => {
+    const res = await fetch(`${API_URL}/api/admin/access-codes/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  toggleAccessCode: async (id: string, isActive: boolean) => {
+    const res = await fetch(`${API_URL}/api/admin/access-codes/${id}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ isActive }),
+    });
+    return res.json();
   },
 };

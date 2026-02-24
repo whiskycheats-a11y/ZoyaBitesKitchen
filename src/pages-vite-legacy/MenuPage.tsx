@@ -6,16 +6,18 @@ import FloatingParticles from '@/components/FloatingParticles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { SlidersHorizontal, LayoutGrid, Timer, Flame, Leaf, UtensilsCrossed } from 'lucide-react';
 
 type Category = {
-  id: string;
+  _id: string;
   name: string;
-  sortOrder?: number;
+  sort_order?: number;
 };
 
 type FoodItem = {
-  id: string;
+  _id: string;
   category_id: string | null;
   name: string;
   description?: string | null;
@@ -29,29 +31,22 @@ type FoodItem = {
 const MenuPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<FoodItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: categoriesData, error: catError } = await supabase
-          .from('menu_categories')
-          .select('*')
-          .order('sort_order');
-
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('food_items')
-          .select('*')
-          .order('sort_order');
-
-        if (catError || itemsError) {
-          console.error('Menu load error', catError || itemsError);
-          toast.error('Failed to load menu');
+        const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const res = await fetch(`${baseUrl}/api/menu`);
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Menu load error', data);
+          toast.error(data.error || 'Failed to load menu');
         } else {
-          setCategories(categoriesData || []);
-          setItems(itemsData || []);
+          setCategories(data.categories || []);
+          setItems(data.items || []);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load menu';
@@ -152,8 +147,8 @@ const MenuPage = () => {
               whileTap={{ scale: 0.95 }}
               onClick={() => setSelectedCat(null)}
               className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${!selectedCat
-                  ? 'btn-premium'
-                  : 'bg-muted/50 text-muted-foreground border border-border hover:border-primary/20'
+                ? 'btn-premium'
+                : 'bg-muted/50 text-muted-foreground border border-border hover:border-primary/20'
                 }`}
             >
               <span className="relative z-10">All Dishes</span>
@@ -165,8 +160,8 @@ const MenuPage = () => {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedCat(cat.id)}
                 className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${selectedCat === cat.id
-                    ? 'btn-premium'
-                    : 'bg-muted/50 text-muted-foreground border border-border hover:border-primary/20'
+                  ? 'btn-premium'
+                  : 'bg-muted/50 text-muted-foreground border border-border hover:border-primary/20'
                   }`}
               >
                 <span className="relative z-10">{cat.name}</span>

@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import type { Tables } from '@/integrations/supabase/types';
 
-type FoodItem = Tables<'food_items'>;
+export interface FoodItem {
+  id?: string;
+  _id?: string;
+  name: string;
+  price: number;
+  image_url?: string;
+}
 
 export interface CartItem {
   food: FoodItem;

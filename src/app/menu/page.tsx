@@ -9,13 +9,15 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 type Category = {
-    id: string;
+    id?: string;
+    _id?: string;
     name: string;
     sortOrder?: number;
 };
 
 type FoodItem = {
-    id: string;
+    id?: string;
+    _id?: string;
     category_id: string | null;
     name: string;
     description?: string | null;
@@ -27,8 +29,8 @@ type FoodItem = {
 };
 
 export default function MenuPage() {
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [items, setItems] = useState<FoodItem[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const [selectedCat, setSelectedCat] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
@@ -36,22 +38,15 @@ export default function MenuPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const { data: categoriesData, error: catError } = await supabase
-                    .from('menu_categories')
-                    .select('*')
-                    .order('sort_order');
-
-                const { data: itemsData, error: itemsError } = await supabase
-                    .from('food_items')
-                    .select('*')
-                    .order('sort_order');
-
-                if (catError || itemsError) {
-                    console.error('Menu load error', catError || itemsError);
-                    toast.error('Failed to load menu');
+                const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                const res = await fetch(`${baseUrl}/api/menu`);
+                const data = await res.json();
+                if (!res.ok) {
+                    console.error('Menu load error', data);
+                    toast.error(data.error || 'Failed to load menu');
                 } else {
-                    setCategories(categoriesData || []);
-                    setItems(itemsData || []);
+                    setCategories(data.categories || []);
+                    setItems(data.items || []);
                 }
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Failed to load menu';

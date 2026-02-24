@@ -71,6 +71,15 @@ const Category = mongoose.model('Category', categorySchema);
 const Product = mongoose.model('Product', productSchema);
 const Order = mongoose.model('Order', orderSchema);
 
+const accessCodeSchema = new mongoose.Schema({
+  label: { type: String, required: true },
+  code: { type: String, required: true },
+  expiresAt: { type: Date, required: true },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const AccessCode = mongoose.model('AccessCode', accessCodeSchema);
+
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -370,6 +379,171 @@ app.get('/api/menu', async (req, res) => {
     });
   } catch (err) {
     console.error('Menu fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Categories CRUD (Admin)
+// ============================================
+app.get('/api/categories', async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ sortOrder: 1, name: 1 });
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/categories', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const category = new Category(req.body);
+    await category.save();
+    res.json(category);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(category);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    await Category.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Products CRUD (Admin)
+// ============================================
+app.get('/api/products', async (req, res) => {
+  try {
+    const products = await Product.find().sort({ sortOrder: 1, name: 1 });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/products', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const product = new Product(req.body);
+    await product.save();
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Admin Order Management
+// ============================================
+app.get('/api/admin/orders', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/orders/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
+
+    const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Admin Access Codes
+// ============================================
+app.get('/api/admin/access-codes', async (req, res) => {
+  try {
+    const codes = await AccessCode.find().sort({ createdAt: -1 });
+    res.json(codes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/access-codes', async (req, res) => {
+  try {
+    const code = new AccessCode(req.body);
+    await code.save();
+    res.json(code);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/access-codes/:id', async (req, res) => {
+  try {
+    await AccessCode.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/access-codes/:id', async (req, res) => {
+  try {
+    const code = await AccessCode.findByIdAndUpdate(req.params.id, { isActive: req.body.isActive }, { new: true });
+    res.json(code);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
