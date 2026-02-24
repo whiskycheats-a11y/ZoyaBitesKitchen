@@ -5,6 +5,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const Razorpay = require('razorpay');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -65,6 +66,11 @@ const productSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const accessCodeSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
 const orderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [{
@@ -78,6 +84,8 @@ const orderSchema = new mongoose.Schema({
   paymentStatus: { type: String, default: 'pending' },
   razorpayOrderId: String,
   razorpayPaymentId: String,
+  deliveryAddress: String,
+  notes: String,
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -86,17 +94,27 @@ const Category = mongoose.model('Category', categorySchema);
 const Product = mongoose.model('Product', productSchema);
 const Order = mongoose.model('Order', orderSchema);
 
-const accessCodeSchema = new mongoose.Schema({
-  label: { type: String, required: true },
-  code: { type: String, required: true },
-  expiresAt: { type: Date, required: true },
-  isActive: { type: Boolean, default: true },
+const Address = mongoose.model('Address', new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  label: { type: String, default: 'Home' },
+  address_line: { type: String, required: true },
+  city: { type: String, required: true },
+  state: { type: String },
+  pincode: { type: String, required: true },
+  is_default: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
-});
+}));
+
 const AccessCode = mongoose.model('AccessCode', accessCodeSchema);
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Razorpay Instance
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret'
+});
 
 // Helper: Generate JWT token
 const generateToken = (user) => {
@@ -189,7 +207,118 @@ app.get('/api/auth/me', async (req, res) => {
   try {
     const user = await getUser(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    res.json({ user: { id: user._id, email: user.email, name: user.name, roles: user.roles } });
+    res.json({ user: { id: user._id, email: user.email, name: user.name, phone: user.phone, roles: user.roles } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Profile - Get/Update
+// ============================================
+app.get('/api/profile', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    res.json({ full_name: user.name, phone: user.phone, email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/profile', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { full_name, phone } = req.body;
+    if (full_name) user.name = full_name;
+    if (phone) user.phone = phone;
+    await user.save();
+
+    res.json({ success: true, full_name: user.name, phone: user.phone });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/profile', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { full_name, phone } = req.body;
+    if (full_name) user.name = full_name;
+    if (phone) user.phone = phone;
+    await user.save();
+
+    res.json({ success: true, full_name: user.name, phone: user.phone });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Addresses Management
+// ============================================
+app.get('/api/addresses', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const addrs = await Address.find({ userId: user._id }).sort({ is_default: -1, createdAt: -1 });
+    res.json(addrs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/addresses', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { label, address_line, city, state, pincode, is_default } = req.body;
+
+    if (is_default) {
+      await Address.updateMany({ userId: user._id }, { is_default: false });
+    } else {
+      const count = await Address.countDocuments({ userId: user._id });
+      if (count === 0) req.body.is_default = true;
+    }
+
+    const addr = new Address({
+      userId: user._id,
+      label, address_line, city, state, pincode,
+      is_default: req.body.is_default || is_default || false
+    });
+    await addr.save();
+    res.json(addr);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/addresses/:id/default', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    await Address.updateMany({ userId: user._id }, { is_default: false });
+    await Address.findByIdAndUpdate(req.params.id, { is_default: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/addresses/:id', async (req, res) => {
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    await Address.deleteOne({ _id: req.params.id, userId: user._id });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -12,17 +12,16 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { MapPin, Plus, Trash2, Star, User, Mail } from 'lucide-react';
-
-const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'https://zoyabiteskitchen.onrender.com';
+import { api } from '@/lib/api';
 
 type Address = {
-    _id?: string;
+    _id: string;
     address_line: string;
     city: string;
     state?: string;
     pincode: string;
-    label?: string;
-    is_default?: boolean;
+    label: string;
+    is_default: boolean;
 };
 
 type Profile = {
@@ -42,27 +41,22 @@ export default function ProfilePage() {
     const [newPassword, setNewPassword] = useState('');
     const [changingPassword, setChangingPassword] = useState(false);
 
-    const getAuthHeaders = () => ({
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
-    });
-
     const fetchData = async () => {
         if (!user) return;
         try {
-            const [profRes, addrRes] = await Promise.all([
-                fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() }),
-                fetch(`${API_URL}/api/addresses`, { headers: getAuthHeaders() }),
+            const [prof, addrs] = await Promise.all([
+                api.getProfile(),
+                api.getAddresses(),
             ]);
-            if (profRes.ok) {
-                const prof = await profRes.json();
-                if (prof) { setProfile(prof); setEditProfile({ full_name: prof.full_name || '', phone: prof.phone || '' }); }
-                else { setEditProfile({ full_name: (user as any).displayName || '', phone: '' }); }
+
+            if (prof && !prof.error) {
+                setProfile(prof);
+                setEditProfile({ full_name: prof.full_name || '', phone: prof.phone || '' });
+            } else {
+                setEditProfile({ full_name: (user as any).displayName || '', phone: '' });
             }
-            if (addrRes.ok) {
-                const addrs = await addrRes.json();
-                setAddresses(addrs || []);
-            }
+
+            setAddresses(addrs || []);
         } catch (err) {
             console.error('fetchData error', err);
         }
@@ -78,13 +72,11 @@ export default function ProfilePage() {
         if (!user) return;
         setSaving(true);
         try {
-            const res = await fetch(`${API_URL}/api/profile`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify(editProfile),
-            });
-            if (res.ok) { toast.success('Profile updated!'); fetchData(); }
-            else toast.error('Failed to save');
+            const res = await api.updateProfile(editProfile);
+            if (res.success) {
+                toast.success('Profile updated!');
+                setProfile({ ...profile, ...editProfile } as Profile);
+            } else toast.error('Failed to save');
         } catch { toast.error('Failed to save'); }
         finally { setSaving(false); }
     };
@@ -112,12 +104,8 @@ export default function ProfilePage() {
             return;
         }
         try {
-            const res = await fetch(`${API_URL}/api/addresses`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ ...newAddr, is_default: addresses.length === 0 }),
-            });
-            if (res.ok) {
+            const res = await api.saveAddress({ ...newAddr, is_default: addresses.length === 0 });
+            if (res && !res.error) {
                 toast.success('Address saved!');
                 setNewAddr({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
                 setShowAddForm(false);
@@ -128,7 +116,7 @@ export default function ProfilePage() {
 
     const setDefault = async (id: string) => {
         try {
-            await fetch(`${API_URL}/api/addresses/${id}/default`, { method: 'PUT', headers: getAuthHeaders() });
+            await api.setDefaultAddress(id);
             toast.success('Default address updated');
             fetchData();
         } catch { toast.error('Failed to update'); }
@@ -136,9 +124,11 @@ export default function ProfilePage() {
 
     const deleteAddress = async (id: string) => {
         try {
-            const res = await fetch(`${API_URL}/api/addresses/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-            if (res.ok) { toast.success('Address removed'); fetchData(); }
-            else toast.error('Failed to delete address');
+            const res = await api.deleteAddress(id);
+            if (res.success) {
+                toast.success('Address removed');
+                fetchData();
+            } else toast.error('Failed to delete address');
         } catch { toast.error('Failed to delete address'); }
     };
 
@@ -250,11 +240,11 @@ export default function ProfilePage() {
                                             </div>
                                             <div className="flex gap-1">
                                                 {!addr.is_default && (
-                                                    <Button variant="ghost" size="sm" onClick={() => setDefault(addr._id!)} className="text-xs text-muted-foreground hover:text-primary">
+                                                    <Button variant="ghost" size="sm" onClick={() => setDefault(addr._id)} className="text-xs text-muted-foreground hover:text-primary">
                                                         Set Default
                                                     </Button>
                                                 )}
-                                                <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr._id!)} className="text-destructive hover:text-destructive">
+                                                <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr._id)} className="text-destructive hover:text-destructive">
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>

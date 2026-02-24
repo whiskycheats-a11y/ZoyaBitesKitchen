@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-// Moving address storage from Supabase to Firebase Firestore
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,31 +14,30 @@ import { Truck, CreditCard, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 
 type Address = {
-    id: string;
-    user_id: string;
+    _id: string;
     label: string;
     address_line: string;
     city: string;
     state: string;
     pincode: string;
     is_default: boolean;
-    created_at?: string;
 };
 
 const DELIVERY_CHARGE = 40;
 
 declare global {
     interface Window {
-        Razorpay: unknown;
+        Razorpay: any;
     }
 }
 
 const loadRazorpayScript = (): Promise<boolean> => {
     return new Promise((resolve) => {
-        if (typeof window !== 'undefined' && window.Razorpay) { resolve(true); return; }
+        if (typeof window !== 'undefined' && (window as any).Razorpay) { resolve(true); return; }
         if (typeof document === 'undefined') { resolve(false); return; }
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.id = 'razorpay-checkout-js';
         script.onload = () => resolve(true);
         script.onerror = () => resolve(false);
         document.body.appendChild(script);
@@ -63,14 +59,16 @@ export default function CheckoutPage() {
 
     const fetchAddresses = async () => {
         if (!user) return;
-        const q = query(collection(db, 'users', user.id, 'addresses'), orderBy('created_at', 'desc'));
-        const snap = await getDocs(q);
-        const list: Address[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Address, 'id'>) }));
-        setAddresses(list);
-        const def = list.find(a => a.is_default);
-        if (def) setSelectedAddress(def.id);
-        else if (list.length > 0) setSelectedAddress(list[0].id);
-        else setShowNewAddress(true);
+        try {
+            const list = await api.getAddresses();
+            setAddresses(list || []);
+            const def = (list || []).find((a: any) => a.is_default);
+            if (def) setSelectedAddress(def._id);
+            else if (list && list.length > 0) setSelectedAddress(list[0]._id);
+            else setShowNewAddress(true);
+        } catch (err) {
+            console.error('Fetch addresses error', err);
+        }
     };
 
     useEffect(() => {
@@ -83,31 +81,15 @@ export default function CheckoutPage() {
     const saveNewAddress = async () => {
         if (!user) return;
         try {
-            const isDefault = addresses.length === 0;
-            const docRef = await addDoc(collection(db, 'users', user.id, 'addresses'), {
-                user_id: user.id,
+            const result = await api.saveAddress({
                 ...newAddress,
-                is_default: isDefault,
-                created_at: new Date().toISOString(),
+                is_default: addresses.length === 0,
             });
-            // If setting a new default when others exist, unset old default
-            if (!isDefault) {
-                const currentDefault = addresses.find(a => a.is_default);
-                if (currentDefault) {
-                    await updateDoc(doc(db, 'users', user.id, 'addresses', currentDefault.id), { is_default: false });
-                }
-            }
-            const created: Address = {
-                id: docRef.id,
-                user_id: user.id,
-                ...newAddress,
-                is_default: isDefault,
-                created_at: new Date().toISOString(),
-            };
-            setAddresses(prev => [created, ...prev]);
-            setSelectedAddress(docRef.id);
+            setAddresses(prev => [result, ...prev]);
+            setSelectedAddress(result._id);
             setShowNewAddress(false);
             setNewAddress({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
+            toast.success('Address saved!');
         } catch {
             toast.error('Failed to save address');
         }
@@ -121,58 +103,67 @@ export default function CheckoutPage() {
 
         setLoading(true);
         try {
-            const addr = addresses.find(a => a.id === selectedAddress);
-            const deliveryStr = `${addr?.address_line}, ${addr?.city}, ${addr?.state} - ${addr?.pincode}`;
+            const addr = addresses.find(a => a._id === selectedAddress);
+            const deliveryStr = `${addr?.address_line}, ${addr?.city}${addr?.state ? `, ${addr?.state}` : ''} - ${addr?.pincode}`;
 
-            // Note: Order persistence is handled after payment verification on backend.
-            // Here we only initiate payment.
-            const orderId = `rzp_${Date.now().toString(36)}`;
+            // 1. Create order in DB (pending status)
+            const order = await api.createOrder({
+                items: items.map(item => ({
+                    food: {
+                        _id: (item.food as any)._id || (item.food as any).id,
+                        name: item.food.name,
+                        price: item.food.price
+                    },
+                    quantity: item.quantity
+                })),
+                totalAmount: grandTotal,
+                deliveryAddress: deliveryStr,
+                notes
+            });
 
-            // 3. Create Razorpay order via backend
-            const rzpData = await api.createRazorpayOrder(grandTotal, order.id);
+            // 2. Create Razorpay order via backend
+            const rzpData = await api.createRazorpayOrder(grandTotal, order._id);
 
-            // 4. Open Razorpay checkout
+            // 3. Open Razorpay checkout
             const options = {
                 key: rzpData.razorpay_key_id,
                 amount: rzpData.amount,
                 currency: 'INR',
                 name: 'ZoyaBites',
-                description: `Order #${orderId.slice(0, 8)}`,
+                description: `Order #${order._id.slice(-8)}`,
                 order_id: rzpData.razorpay_order_id,
                 prefill: {
-                    email: user.email,
-                    name: user.user_metadata?.full_name || '',
+                    email: user.email || '',
+                    name: (user as any).name || (user as any).displayName || '',
+                    contact: (user as any).phone || '',
                 },
                 theme: { color: '#c4873b' },
-                handler: async (response: Record<string, string>) => {
-                    // 5. Verify payment via backend
+                handler: async (response: any) => {
+                    // 4. Verify payment via backend
                     try {
                         await api.verifyRazorpayPayment({
-                            razorpay_order_id: response['razorpay_order_id'],
-                            razorpay_payment_id: response['razorpay_payment_id'],
-                            razorpay_signature: response['razorpay_signature'],
-                            order_id: orderId,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            order_id: order._id,
                         });
 
                         clearCart();
                         toast.success('Payment successful! Order placed 🎉');
                         router.push('/orders');
-                    } catch {
-                        toast.error('Payment verification failed. Contact support.');
+                    } catch (err: any) {
+                        toast.error(err.message || 'Payment verification failed. Contact support.');
                     }
                 },
                 modal: {
-                    ondismiss: async () => {
-                        // Payment cancelled — mark order as failed
-                        // No DB write on cancel in this simplified flow
+                    ondismiss: () => {
                         toast.error('Payment cancelled');
                         setLoading(false);
                     },
                 },
             };
 
-            const RZP = window.Razorpay as any;
-            const rzp = new RZP(options);
+            const rzp = new (window as any).Razorpay(options);
             rzp.open();
             setLoading(false);
         } catch (err) {
@@ -195,13 +186,13 @@ export default function CheckoutPage() {
                         <div className="space-y-3">
                             {addresses.map(addr => (
                                 <label
-                                    key={addr.id}
-                                    className={`block p-4 rounded-lg border cursor-pointer transition-all ${selectedAddress === addr.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                                    key={addr._id}
+                                    className={`block p-4 rounded-lg border cursor-pointer transition-all ${selectedAddress === addr._id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                                         }`}
                                 >
-                                    <input type="radio" name="address" className="sr-only" checked={selectedAddress === addr.id} onChange={() => setSelectedAddress(addr.id)} />
+                                    <input type="radio" name="address" className="sr-only" checked={selectedAddress === addr._id} onChange={() => setSelectedAddress(addr._id)} />
                                     <span className="text-xs font-bold uppercase text-accent">{addr.label}</span>
-                                    <p className="text-foreground text-sm mt-1">{addr.address_line}, {addr.city}, {addr.state} - {addr.pincode}</p>
+                                    <p className="text-foreground text-sm mt-1">{addr.address_line}, {addr.city}{addr.state ? `, ${addr.state}` : ''} - {addr.pincode}</p>
                                 </label>
                             ))}
                             <Button variant="outline" size="sm" onClick={() => setShowNewAddress(true)}>+ Add New Address</Button>

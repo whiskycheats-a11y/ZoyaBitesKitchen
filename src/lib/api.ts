@@ -97,6 +97,69 @@ export const api = {
     });
     return res.json();
   },
+  createOrder: async (data: any) => {
+    const res = await fetch(`${API_URL}/api/orders`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Failed to place order');
+    return result;
+  },
+  getUserOrders: async () => {
+    const res = await fetch(`${API_URL}/api/orders`, {
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+
+  /** Address Management */
+  getAddresses: async () => {
+    const res = await fetch(`${API_URL}/api/addresses`, {
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  saveAddress: async (data: any) => {
+    const res = await fetch(`${API_URL}/api/addresses`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  setDefaultAddress: async (id: string) => {
+    const res = await fetch(`${API_URL}/api/addresses/${id}/default`, {
+      method: 'PUT',
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  deleteAddress: async (id: string) => {
+    const res = await fetch(`${API_URL}/api/addresses/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+
+  /** Profile Management */
+  getProfile: async () => {
+    const res = await fetch(`${API_URL}/api/profile`, {
+      headers: getHeaders(),
+    });
+    return res.json();
+  },
+  updateProfile: async (data: any) => {
+    const res = await fetch(`${API_URL}/api/profile`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
   updateOrderStatus: async (id: string, status: string) => {
     const res = await fetch(`${API_URL}/api/admin/orders/${id}`, {
       method: 'PUT',

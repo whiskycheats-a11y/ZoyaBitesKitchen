@@ -9,6 +9,8 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zoyabiteskitchen.onrender.com';
+
 interface AuthContextType {
   user: (FirebaseUser & { id: string; user_metadata: { full_name: string | null } }) | null;
   loading: boolean;
@@ -64,6 +66,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: fullName });
+
+      // Sync with backend
+      try {
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name: fullName })
+        });
+        const data = await res.json();
+        if (data.token) localStorage.setItem('auth_token', data.token);
+      } catch (err) {
+        console.error('Backend sync failed', err);
+      }
+
       return { error: null };
     } catch (err) {
       return { error: err as Error };
@@ -73,6 +89,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+
+      // Sync with backend
+      try {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.token) localStorage.setItem('auth_token', data.token);
+      } catch (err) {
+        // If login fails, maybe try register (in case user was created in Firebase but not backend)
+        try {
+          const res = await fetch(`${API_URL}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, name: email.split('@')[0] })
+          });
+          const data = await res.json();
+          if (data.token) localStorage.setItem('auth_token', data.token);
+        } catch (err2) {
+          console.error('Backend sync failed', err2);
+        }
+      }
+
       return { error: null };
     } catch (err) {
       return { error: err as Error };
@@ -81,6 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     await firebaseSignOut(auth);
+    localStorage.removeItem('auth_token');
     setUser(null);
     setIsAdmin(false);
     setIsSeller(false);
