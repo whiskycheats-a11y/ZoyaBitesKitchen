@@ -10,6 +10,7 @@ import FloatingParticles from '@/components/FloatingParticles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
 type Category = Tables<'menu_categories'>;
 type FoodItem = Tables<'food_items'>;
@@ -23,13 +24,26 @@ export default function MenuPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const [catRes, itemRes] = await Promise.all([
-                supabase.from('menu_categories').select('*').eq('is_active', true).order('sort_order'),
-                supabase.from('food_items').select('*').order('sort_order'),
-            ]);
-            if (catRes.data) setCategories(catRes.data);
-            if (itemRes.data) setItems(itemRes.data);
-            setLoading(false);
+            try {
+                const [catRes, itemRes] = await Promise.all([
+                    supabase.from('menu_categories').select('*').eq('is_active', true).order('sort_order'),
+                    supabase.from('food_items').select('*').order('sort_order'),
+                ]);
+
+                if (catRes.error || itemRes.error) {
+                    console.error('Menu load error', catRes.error, itemRes.error);
+                    toast.error(catRes.error?.message || itemRes.error?.message || 'Failed to load menu');
+                } else {
+                    if (catRes.data) setCategories(catRes.data);
+                    if (itemRes.data) setItems(itemRes.data);
+                }
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Failed to load menu';
+                console.error('Menu load exception', err);
+                toast.error(message);
+            } finally {
+                setLoading(false);
+            }
         };
         fetchData();
     }, []);
