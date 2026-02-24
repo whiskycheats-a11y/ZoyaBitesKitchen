@@ -201,6 +201,25 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================
+// ROUTE: Auth - Sync (Token recovery)
+// ============================================
+app.post('/api/auth/sync', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // In a real app, verify firebase ID token here
+    const token = generateToken(user);
+    res.json({ token, user: { id: user._id, email: user.email, name: user.name, roles: user.roles } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
 // ROUTE: Auth - Get Current User
 // ============================================
 app.get('/api/auth/me', async (req, res) => {

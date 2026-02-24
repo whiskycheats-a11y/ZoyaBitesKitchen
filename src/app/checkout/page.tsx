@@ -96,35 +96,49 @@ export default function CheckoutPage() {
     };
 
     const placeOrder = async () => {
-        if (!user || !selectedAddress) { toast.error('Please select a delivery address'); return; }
+        console.log('[Checkout] Starting placeOrder...');
+        if (!user || !selectedAddress) {
+            console.warn('[Checkout] Missing user or selectedAddress', { hasUser: !!user, selectedAddress });
+            toast.error('Please select a delivery address');
+            return;
+        }
 
+        console.log('[Checkout] Loading Razorpay script...');
         const scriptLoaded = await loadRazorpayScript();
-        if (!scriptLoaded) { toast.error('Payment gateway failed to load. Please refresh.'); return; }
+        if (!scriptLoaded) {
+            console.error('[Checkout] Razorpay script failed to load.');
+            toast.error('Payment gateway failed to load. Please refresh.');
+            return;
+        }
 
         setLoading(true);
         try {
             const addr = addresses.find(a => a._id === selectedAddress);
             const deliveryStr = `${addr?.address_line}, ${addr?.city}${addr?.state ? `, ${addr?.state}` : ''} - ${addr?.pincode}`;
+            console.log('[Checkout] Delivery string:', deliveryStr);
 
             // 1. Create order in DB (pending status)
+            console.log('[Checkout] Step 1: Creating order in DB...');
             const order = await api.createOrder({
                 items: items.map(item => ({
-                    food: {
-                        _id: (item.food as any)._id || (item.food as any).id,
-                        name: item.food.name,
-                        price: item.food.price
-                    },
-                    quantity: item.quantity
+                    productId: (item.food as any)._id || (item.food as any).id,
+                    name: item.food.name,
+                    quantity: item.quantity,
+                    price: item.food.price
                 })),
                 totalAmount: grandTotal,
                 deliveryAddress: deliveryStr,
                 notes
             });
+            console.log('[Checkout] Step 1 Success: Order created', order._id);
 
             // 2. Create Razorpay order via backend
+            console.log('[Checkout] Step 2: Creating Razorpay order...');
             const rzpData = await api.createRazorpayOrder(grandTotal, order._id);
+            console.log('[Checkout] Step 2 Success: Razorpay data received', rzpData.razorpay_order_id);
 
             // 3. Open Razorpay checkout
+            console.log('[Checkout] Step 3: Initializing Razorpay modal...');
             const options = {
                 key: rzpData.razorpay_key_id,
                 amount: rzpData.amount,
@@ -139,24 +153,29 @@ export default function CheckoutPage() {
                 },
                 theme: { color: '#c4873b' },
                 handler: async (response: any) => {
+                    console.log('[Checkout] Step 4: Razorpay handler called', response.razorpay_payment_id);
                     // 4. Verify payment via backend
                     try {
+                        console.log('[Checkout] Verifying payment on backend...');
                         await api.verifyRazorpayPayment({
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
                             order_id: order._id,
                         });
+                        console.log('[Checkout] Payment verification success!');
 
                         clearCart();
                         toast.success('Payment successful! Order placed 🎉');
                         router.push('/orders');
                     } catch (err: any) {
+                        console.error('[Checkout] Payment verification failed:', err);
                         toast.error(err.message || 'Payment verification failed. Contact support.');
                     }
                 },
                 modal: {
                     ondismiss: () => {
+                        console.log('[Checkout] Razorpay modal dismissed by user.');
                         toast.error('Payment cancelled');
                         setLoading(false);
                     },
@@ -165,8 +184,10 @@ export default function CheckoutPage() {
 
             const rzp = new (window as any).Razorpay(options);
             rzp.open();
+            console.log('[Checkout] Razorpay modal opened.');
             setLoading(false);
         } catch (err) {
+            console.error('[Checkout] placeOrder Exception:', err);
             const message = err instanceof Error ? err.message : 'Failed to place order';
             toast.error(message);
             setLoading(false);

@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, Pencil, Trash2, Package, Upload, ImageIcon, Users, ShieldCheck, ShieldOff, Lock, ChefHat, ShoppingBag, LayoutGrid, TrendingUp, IndianRupee, Clock, CheckCircle2, Key, Copy, CalendarClock } from 'lucide-react';
 import { api } from '@/lib/api';
 
-const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'https://zoyabiteskitchen.onrender.com';
+const API_URL = (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL)) || 'https://zoyabiteskitchen.onrender.com';
 
 type Category = { _id: string; name: string; description?: string; image_url?: string; };
 type FoodItem = { _id: string; name: string; description?: string; price: number; category_id: string; image_url?: string; is_veg?: boolean; is_available?: boolean; };

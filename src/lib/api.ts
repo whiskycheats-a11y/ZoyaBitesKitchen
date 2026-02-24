@@ -1,34 +1,51 @@
-const API_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://zoyabiteskitchen.onrender.com';
+const API_URL = (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL)) || 'https://zoyabiteskitchen.onrender.com';
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
-});
+const getHeaders = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  console.log('[API] Using token:', token ? '***' + token.slice(-5) : 'NONE');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token || ''}`,
+  };
+};
+
+const apiFetch = async (url: string, options: any = {}) => {
+  const method = options.method || 'GET';
+  console.log(`[API] ${method} ${url}`);
+  try {
+    const res = await fetch(url, options);
+    console.log(`[API] Response: ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('[API] Error data:', data);
+      if (data.error) throw new Error(data.error);
+      throw new Error(`Request failed with status ${res.status}`);
+    }
+    return data;
+  } catch (err) {
+    console.error('[API] Fetch exception:', err);
+    throw err;
+  }
+};
 
 export const api = {
   /** Upload image to Cloudinary via backend */
   uploadImage: async (file: File): Promise<{ url: string }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_URL}/api/upload-image`, {
+    return apiFetch(`${API_URL}/api/upload-image`, {
       method: 'POST',
       body: formData,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
-    return data;
   },
 
   /** Create Razorpay order via backend */
   createRazorpayOrder: async (amount: number, orderId: string) => {
-    const res = await fetch(`${API_URL}/api/create-razorpay-order`, {
+    return apiFetch(`${API_URL}/api/create-razorpay-order`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ amount, order_id: orderId }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create payment');
-    return data;
   },
 
   /** Verify Razorpay payment via backend */
@@ -38,165 +55,140 @@ export const api = {
     razorpay_signature: string;
     order_id: string;
   }) => {
-    const res = await fetch(`${API_URL}/api/verify-razorpay-payment`, {
+    return apiFetch(`${API_URL}/api/verify-razorpay-payment`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Verification failed');
-    return data;
   },
 
   /** Categories CRUD */
   getCategories: async () => {
-    const res = await fetch(`${API_URL}/api/categories`);
-    return res.json();
+    return apiFetch(`${API_URL}/api/categories`);
   },
   saveCategory: async (id: string | null, data: any) => {
-    const res = await fetch(id ? `${API_URL}/api/categories/${id}` : `${API_URL}/api/categories`, {
+    return apiFetch(id ? `${API_URL}/api/categories/${id}` : `${API_URL}/api/categories`, {
       method: id ? 'PUT' : 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
   },
   deleteCategory: async (id: string) => {
-    const res = await fetch(`${API_URL}/api/categories/${id}`, {
+    return apiFetch(`${API_URL}/api/categories/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    return res.json();
   },
 
   /** Products CRUD */
   getProducts: async () => {
-    const res = await fetch(`${API_URL}/api/products`);
-    return res.json();
+    return apiFetch(`${API_URL}/api/products`);
   },
   saveProduct: async (id: string | null, data: any) => {
-    const res = await fetch(id ? `${API_URL}/api/products/${id}` : `${API_URL}/api/products`, {
+    return apiFetch(id ? `${API_URL}/api/products/${id}` : `${API_URL}/api/products`, {
       method: id ? 'PUT' : 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
   },
   deleteProduct: async (id: string) => {
-    const res = await fetch(`${API_URL}/api/products/${id}`, {
+    return apiFetch(`${API_URL}/api/products/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    return res.json();
   },
 
   /** Orders Management */
   getAdminOrders: async () => {
-    const res = await fetch(`${API_URL}/api/admin/orders`, {
+    return apiFetch(`${API_URL}/api/admin/orders`, {
       headers: getHeaders(),
     });
-    return res.json();
   },
   createOrder: async (data: any) => {
-    const res = await fetch(`${API_URL}/api/orders`, {
+    return apiFetch(`${API_URL}/api/orders`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error || 'Failed to place order');
-    return result;
   },
   getUserOrders: async () => {
-    const res = await fetch(`${API_URL}/api/orders`, {
+    return apiFetch(`${API_URL}/api/orders`, {
       headers: getHeaders(),
     });
-    return res.json();
   },
 
   /** Address Management */
   getAddresses: async () => {
-    const res = await fetch(`${API_URL}/api/addresses`, {
+    return apiFetch(`${API_URL}/api/addresses`, {
       headers: getHeaders(),
     });
-    return res.json();
   },
   saveAddress: async (data: any) => {
-    const res = await fetch(`${API_URL}/api/addresses`, {
+    return apiFetch(`${API_URL}/api/addresses`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
   },
   setDefaultAddress: async (id: string) => {
-    const res = await fetch(`${API_URL}/api/addresses/${id}/default`, {
+    return apiFetch(`${API_URL}/api/addresses/${id}/default`, {
       method: 'PUT',
       headers: getHeaders(),
     });
-    return res.json();
   },
   deleteAddress: async (id: string) => {
-    const res = await fetch(`${API_URL}/api/addresses/${id}`, {
+    return apiFetch(`${API_URL}/api/addresses/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    return res.json();
   },
 
   /** Profile Management */
   getProfile: async () => {
-    const res = await fetch(`${API_URL}/api/profile`, {
+    return apiFetch(`${API_URL}/api/profile`, {
       headers: getHeaders(),
     });
-    return res.json();
   },
   updateProfile: async (data: any) => {
-    const res = await fetch(`${API_URL}/api/profile`, {
+    return apiFetch(`${API_URL}/api/profile`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
   },
 
   updateOrderStatus: async (id: string, status: string) => {
-    const res = await fetch(`${API_URL}/api/admin/orders/${id}`, {
+    return apiFetch(`${API_URL}/api/admin/orders/${id}`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify({ status }),
     });
-    return res.json();
   },
 
   /** Access Codes */
   getAccessCodes: async () => {
-    const res = await fetch(`${API_URL}/api/admin/access-codes`, {
+    return apiFetch(`${API_URL}/api/admin/access-codes`, {
       headers: getHeaders(),
     });
-    return res.json();
   },
   saveAccessCode: async (data: any) => {
-    const res = await fetch(`${API_URL}/api/admin/access-codes`, {
+    return apiFetch(`${API_URL}/api/admin/access-codes`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
   },
   deleteAccessCode: async (id: string) => {
-    const res = await fetch(`${API_URL}/api/admin/access-codes/${id}`, {
+    return apiFetch(`${API_URL}/api/admin/access-codes/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    return res.json();
   },
   toggleAccessCode: async (id: string, isActive: boolean) => {
-    const res = await fetch(`${API_URL}/api/admin/access-codes/${id}`, {
+    return apiFetch(`${API_URL}/api/admin/access-codes/${id}`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify({ isActive }),
     });
-    return res.json();
   },
 };
