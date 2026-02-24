@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { MapPin, Plus, Trash2, Star, User, Mail } from 'lucide-react';
 
-const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'http://localhost:5000';
+const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'https://zoyabiteskitchen.onrender.com';
 
 type Address = {
     _id?: string;

@@ -24,7 +24,7 @@ export default function MenuPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const baseUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'http://localhost:5000';
+                const baseUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'https://zoyabiteskitchen.onrender.com';
                 const res = await fetch(`${baseUrl}/api/menu`);
                 const data = await res.json();
                 if (!res.ok) {

@@ -122,6 +122,17 @@ const isAdmin = async (user) => {
   return user?.roles?.includes('admin') || false;
 };
 
+// Helper: Check admin access (user JWT OR admin password header)
+const checkAdminAccess = async (req) => {
+  // Check admin password header
+  const adminPwd = req.headers['x-admin-password'];
+  if (adminPwd === process.env.ADMIN_PASSWORD || adminPwd === 'henakhan@@@2050') return true;
+  // Check user JWT with admin role
+  const user = await getUser(req);
+  if (user && await isAdmin(user)) return true;
+  return false;
+};
+
 // ============================================
 // ROUTE: Auth - Register
 // ============================================
@@ -339,11 +350,11 @@ app.post('/api/orders', async (req, res) => {
     const user = await getUser(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { items, totalAmount } = req.body;
-    const order = new Order({ userId: user._id, items, totalAmount });
+    const { items, totalAmount, deliveryAddress, notes } = req.body;
+    const order = new Order({ userId: user._id, items, totalAmount, deliveryAddress, notes });
     await order.save();
 
-    res.json({ order: { id: order._id, items, totalAmount, status: order.status } });
+    res.json({ order: { _id: order._id, id: order._id, items, totalAmount, status: order.status } });
   } catch (err) {
     console.error('Create order error:', err);
     res.status(500).json({ error: err.message });
@@ -359,7 +370,46 @@ app.get('/api/orders', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
     const orders = await Order.find({ userId: user._id }).sort({ createdAt: -1 });
-    res.json({ orders });
+    res.json(orders); // plain array
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Orders - Get All (Admin)
+// ============================================
+app.get('/api/orders/all', async (req, res) => {
+  try {
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Orders - Update Status (Admin)
+// ============================================
+app.put('/api/orders/:id/status', async (req, res) => {
+  try {
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Orders - Delete (Admin)
+// ============================================
+app.delete('/api/orders/:id', async (req, res) => {
+  try {
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    await Order.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -376,11 +426,13 @@ app.get('/api/menu', async (req, res) => {
     ]);
     res.json({
       categories: categories.map(c => ({
+        _id: c._id.toString(),
         id: c._id.toString(),
         name: c.name,
         sortOrder: c.sortOrder,
       })),
       items: products.map(p => ({
+        _id: p._id.toString(),
         id: p._id.toString(),
         name: p.name,
         description: p.description,
@@ -412,12 +464,11 @@ app.get('/api/categories', async (req, res) => {
 
 app.post('/api/categories', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
-    const category = new Category(req.body);
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const { name, description, image_url } = req.body;
+    const category = new Category({ name, description, imageUrl: image_url || req.body.imageUrl, isActive: true });
     await category.save();
-    res.json(category);
+    res.json({ ...category.toObject(), _id: category._id, image_url: category.imageUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -425,11 +476,14 @@ app.post('/api/categories', async (req, res) => {
 
 app.put('/api/categories/:id', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
-    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(category);
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const { name, description, image_url } = req.body;
+    const category = await Category.findByIdAndUpdate(
+      req.params.id,
+      { name, description, imageUrl: image_url || req.body.imageUrl },
+      { new: true }
+    );
+    res.json({ ...category.toObject(), _id: category._id, image_url: category.imageUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -437,9 +491,7 @@ app.put('/api/categories/:id', async (req, res) => {
 
 app.delete('/api/categories/:id', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
     await Category.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err) {
@@ -453,7 +505,18 @@ app.delete('/api/categories/:id', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.find().sort({ sortOrder: 1, name: 1 });
-    res.json(products);
+    // Return snake_case fields so admin page can use them directly
+    res.json(products.map(p => ({
+      _id: p._id.toString(),
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      image_url: p.imageUrl,
+      is_veg: p.isVeg,
+      is_available: p.isAvailable,
+      category_id: p.categoryId ? p.categoryId.toString() : null,
+      sort_order: p.sortOrder,
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -461,12 +524,17 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
-    const product = new Product(req.body);
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const { name, description, price, category_id, image_url, is_veg, is_available } = req.body;
+    const product = new Product({
+      name, description, price,
+      categoryId: category_id,
+      imageUrl: image_url,
+      isVeg: is_veg !== undefined ? is_veg : true,
+      isAvailable: is_available !== undefined ? is_available : true,
+    });
     await product.save();
-    res.json(product);
+    res.json({ _id: product._id, name: product.name, description: product.description, price: product.price, image_url: product.imageUrl, is_veg: product.isVeg, is_available: product.isAvailable, category_id: product.categoryId?.toString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -474,11 +542,18 @@ app.post('/api/products', async (req, res) => {
 
 app.put('/api/products/:id', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(product);
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
+    const { name, description, price, category_id, image_url, is_veg, is_available } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (price !== undefined) updateData.price = price;
+    if (category_id !== undefined) updateData.categoryId = category_id;
+    if (image_url !== undefined) updateData.imageUrl = image_url;
+    if (is_veg !== undefined) updateData.isVeg = is_veg;
+    if (is_available !== undefined) updateData.isAvailable = is_available;
+    const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    res.json({ _id: product._id, name: product.name, description: product.description, price: product.price, image_url: product.imageUrl, is_veg: product.isVeg, is_available: product.isAvailable, category_id: product.categoryId?.toString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -486,9 +561,7 @@ app.put('/api/products/:id', async (req, res) => {
 
 app.delete('/api/products/:id', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
     await Product.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err) {
@@ -497,13 +570,11 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 // ============================================
-// ROUTE: Admin Order Management
+// ROUTE: Admin Order Management (legacy path + new path)
 // ============================================
 app.get('/api/admin/orders', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
@@ -513,11 +584,38 @@ app.get('/api/admin/orders', async (req, res) => {
 
 app.put('/api/admin/orders/:id', async (req, res) => {
   try {
-    const user = await getUser(req);
-    if (!await isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
-
+    if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
     const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
     res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Admin Verify Code
+// ============================================
+app.post('/api/admin/verify-code', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+
+    // Check master password
+    if (code === 'henakhan@@@2050' || code === process.env.ADMIN_PASSWORD) {
+      return res.json({ success: true, type: 'master' });
+    }
+
+    // Check access codes
+    const accessCode = await AccessCode.findOne({
+      code,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    });
+    if (accessCode) {
+      return res.json({ success: true, type: 'code' });
+    }
+
+    return res.status(401).json({ error: 'Invalid or expired code' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -539,6 +637,15 @@ app.post('/api/admin/access-codes', async (req, res) => {
   try {
     const code = new AccessCode(req.body);
     await code.save();
+    res.json(code);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/access-codes/:id', async (req, res) => {
+  try {
+    const code = await AccessCode.findByIdAndUpdate(req.params.id, { isActive: req.body.is_active !== undefined ? req.body.is_active : req.body.isActive }, { new: true });
     res.json(code);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 import { Loader2, Package, Clock, CheckCircle, XCircle, Truck, ChefHat, ThumbsUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://zoyabiteskitchen.onrender.com';
 
 const allStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 
@@ -91,8 +91,8 @@ const OrdersPage = () => {
                       <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     <span className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${isCancelled ? 'bg-red-500/10 text-red-500' :
-                        order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
-                          'bg-primary/10 text-primary'
+                      order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
+                        'bg-primary/10 text-primary'
                       }`}>
                       <Icon className="w-4 h-4" /> {st.label}
                     </span>
@@ -120,8 +120,8 @@ const OrdersPage = () => {
                                 animate={isCurrent ? { scale: [1, 1.15, 1] } : {}}
                                 transition={{ duration: 1.5, repeat: Infinity }}
                                 className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all ${isActive
-                                    ? 'bg-primary border-primary text-primary-foreground'
-                                    : 'bg-card border-muted text-muted-foreground'
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : 'bg-card border-muted text-muted-foreground'
                                   }`}
                               >
                                 <SIcon className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
