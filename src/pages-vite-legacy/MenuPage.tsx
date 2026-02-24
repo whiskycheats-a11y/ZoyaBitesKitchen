@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
 import FoodCard from '@/components/FoodCard';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -8,9 +6,25 @@ import FloatingParticles from '@/components/FloatingParticles';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
-type Category = Tables<'menu_categories'>;
-type FoodItem = Tables<'food_items'>;
+type Category = {
+  id: string;
+  name: string;
+  sortOrder?: number;
+};
+
+type FoodItem = {
+  id: string;
+  category_id: string | null;
+  name: string;
+  description?: string | null;
+  price: number;
+  image_url?: string | null;
+  is_veg?: boolean;
+  is_available?: boolean;
+  sort_order?: number;
+};
 
 const MenuPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -21,13 +35,24 @@ const MenuPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [catRes, itemRes] = await Promise.all([
-        supabase.from('menu_categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('food_items').select('*').order('sort_order'),
-      ]);
-      if (catRes.data) setCategories(catRes.data);
-      if (itemRes.data) setItems(itemRes.data);
-      setLoading(false);
+      try {
+        const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const res = await fetch(`${baseUrl}/api/menu`);
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Menu load error', data);
+          toast.error(data.error || 'Failed to load menu');
+        } else {
+          setCategories(data.categories || []);
+          setItems(data.items || []);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load menu';
+        console.error('Menu load exception', err);
+        toast.error(message);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);

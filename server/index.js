@@ -30,6 +30,26 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  slug: { type: String },
+  sortOrder: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const productSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: { type: String },
+  price: { type: Number, required: true },
+  imageUrl: { type: String },
+  isVeg: { type: Boolean, default: true },
+  isAvailable: { type: Boolean, default: true },
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+  sortOrder: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+
 const orderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [{
@@ -47,6 +67,8 @@ const orderSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+const Category = mongoose.model('Category', categorySchema);
+const Product = mongoose.model('Product', productSchema);
 const Order = mongoose.model('Order', orderSchema);
 
 // JWT Secret
@@ -315,6 +337,39 @@ app.get('/api/orders', async (req, res) => {
     const orders = await Order.find({ userId: user._id }).sort({ createdAt: -1 });
     res.json({ orders });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ROUTE: Menu - Public (categories + products)
+// ============================================
+app.get('/api/menu', async (req, res) => {
+  try {
+    const [categories, products] = await Promise.all([
+      Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }),
+      Product.find({ isAvailable: true }).sort({ sortOrder: 1, name: 1 })
+    ]);
+    res.json({
+      categories: categories.map(c => ({
+        id: c._id.toString(),
+        name: c.name,
+        sortOrder: c.sortOrder,
+      })),
+      items: products.map(p => ({
+        id: p._id.toString(),
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        image_url: p.imageUrl,
+        is_veg: p.isVeg,
+        is_available: p.isAvailable,
+        category_id: p.categoryId ? p.categoryId.toString() : null,
+        sort_order: p.sortOrder,
+      })),
+    });
+  } catch (err) {
+    console.error('Menu fetch error:', err);
     res.status(500).json({ error: err.message });
   }
 });
