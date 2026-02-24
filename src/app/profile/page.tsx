@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { updatePassword } from 'firebase/auth';
 import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -26,6 +27,8 @@ export default function ProfilePage() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newAddr, setNewAddr] = useState({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
     const [saving, setSaving] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [changingPassword, setChangingPassword] = useState(false);
 
     const fetchData = async () => {
         if (!user) return;
@@ -53,6 +56,24 @@ export default function ProfilePage() {
         setSaving(false);
         if (error) toast.error('Failed to save');
         else { toast.success('Profile updated!'); fetchData(); }
+    };
+
+    const changePassword = async () => {
+        if (!user || !newPassword || newPassword.length < 6) {
+            toast.error('Password must be at least 6 characters');
+            return;
+        }
+        try {
+            setChangingPassword(true);
+            await updatePassword(user, newPassword);
+            toast.success('Password updated. You can now sign in with email and password.');
+            setNewPassword('');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to update password';
+            toast.error(message);
+        } finally {
+            setChangingPassword(false);
+        }
     };
 
     const addAddress = async () => {
@@ -124,6 +145,19 @@ export default function ProfilePage() {
                             <Button onClick={saveProfile} disabled={saving} className="btn-premium rounded-lg">
                                 {saving ? 'Saving...' : 'Save Profile'}
                             </Button>
+                            <div className="mt-4 space-y-2">
+                                <Label>Set or Change Password</Label>
+                                <Input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="New password"
+                                    minLength={6}
+                                />
+                                <Button onClick={changePassword} disabled={changingPassword} variant="outline">
+                                    {changingPassword ? 'Updating...' : 'Update Password'}
+                                </Button>
+                            </div>
                         </div>
                     </div>
 
