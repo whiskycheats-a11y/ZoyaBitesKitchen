@@ -5,7 +5,12 @@ export interface FoodItem {
   _id?: string;
   name: string;
   price: number;
-  image_url?: string;
+  image_url?: string | null;
+  description?: string | null;
+  is_veg?: boolean;
+  is_available?: boolean;
+  category_id?: string | null;
+  sort_order?: number;
 }
 
 export interface CartItem {
@@ -36,23 +41,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addItem = useCallback((food: FoodItem) => {
     setItems(prev => {
-      const existing = prev.find(i => i.food.id === food.id);
+      const existing = prev.find(i => i.food._id === food._id);
       if (existing) {
-        return prev.map(i => i.food.id === food.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map(i => i.food._id === food._id ? { ...i, quantity: i.quantity + 1 } : i);
       }
       return [...prev, { food, quantity: 1 }];
     });
   }, []);
 
   const removeItem = useCallback((foodId: string) => {
-    setItems(prev => prev.filter(i => i.food.id !== foodId));
+    setItems(prev => prev.filter(i => i.food._id !== foodId));
   }, []);
 
   const updateQuantity = useCallback((foodId: string, qty: number) => {
     if (qty <= 0) {
-      setItems(prev => prev.filter(i => i.food.id !== foodId));
+      setItems(prev => prev.filter(i => i.food._id !== foodId));
     } else {
-      setItems(prev => prev.map(i => i.food.id === foodId ? { ...i, quantity: qty } : i));
+      setItems(prev => prev.map(i => i.food._id === foodId ? { ...i, quantity: qty } : i));
     }
   }, []);
 

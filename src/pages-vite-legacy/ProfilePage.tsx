@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -9,11 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { MapPin, Plus, Trash2, Star, User, Phone, Mail } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
+import { MapPin, Plus, Trash2, Star, User, Mail } from 'lucide-react';
 
-type Address = Tables<'addresses'>;
-type Profile = Tables<'profiles'>;
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+type Address = {
+  _id?: string;
+  address_line: string;
+  city: string;
+  state?: string;
+  pincode: string;
+  label?: string;
+  is_default?: boolean;
+};
+
+type Profile = {
+  full_name: string;
+  phone?: string;
+};
 
 const ProfilePage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -31,26 +43,35 @@ const ProfilePage = () => {
     fetchData();
   }, [user, authLoading]);
 
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+  });
+
   const fetchData = async () => {
     if (!user) return;
-    const [{ data: prof }, { data: addrs }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle(),
-      supabase.from('addresses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-    ]);
-    if (prof) { setProfile(prof); setEditProfile({ full_name: prof.full_name, phone: prof.phone || '' }); }
-    else { setEditProfile({ full_name: user.user_metadata?.full_name || '', phone: '' }); }
-    if (addrs) setAddresses(addrs);
+    try {
+      const [profRes, addrRes] = await Promise.all([
+        fetch(`${API_URL}/api/profile`, { headers: getHeaders() }),
+        fetch(`${API_URL}/api/addresses`, { headers: getHeaders() }),
+      ]);
+      if (profRes.ok) {
+        const prof = await profRes.json();
+        if (prof) { setProfile(prof); setEditProfile({ full_name: prof.full_name || '', phone: prof.phone || '' }); }
+      }
+      if (addrRes.ok) { setAddresses(await addrRes.json() || []); }
+    } catch (err) { console.error(err); }
   };
 
   const saveProfile = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = profile
-      ? await supabase.from('profiles').update({ full_name: editProfile.full_name, phone: editProfile.phone }).eq('user_id', user.id)
-      : await supabase.from('profiles').insert({ user_id: user.id, full_name: editProfile.full_name, phone: editProfile.phone });
-    setSaving(false);
-    if (error) toast.error('Failed to save');
-    else { toast.success('Profile updated!'); fetchData(); }
+    try {
+      const res = await fetch(`${API_URL}/api/profile`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(editProfile) });
+      if (res.ok) { toast.success('Profile updated!'); fetchData(); }
+      else toast.error('Failed to save');
+    } catch { toast.error('Failed to save'); }
+    finally { setSaving(false); }
   };
 
   const addAddress = async () => {
@@ -58,38 +79,34 @@ const ProfilePage = () => {
       toast.error('Please fill address, city, and pincode');
       return;
     }
-    const { error } = await supabase.from('addresses').insert({
-      user_id: user.id, ...newAddr, is_default: addresses.length === 0,
-    });
-    if (error) toast.error('Failed to save');
-    else {
-      toast.success('Address saved!');
-      setNewAddr({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
-      setShowAddForm(false);
-      fetchData();
-    }
+    try {
+      const res = await fetch(`${API_URL}/api/addresses`, {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ ...newAddr, is_default: addresses.length === 0 }),
+      });
+      if (res.ok) {
+        toast.success('Address saved!');
+        setNewAddr({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
+        setShowAddForm(false);
+        fetchData();
+      } else toast.error('Failed to save');
+    } catch { toast.error('Failed to save'); }
   };
 
   const setDefault = async (id: string) => {
-    if (!user) return;
-    await supabase.from('addresses').update({ is_default: false }).eq('user_id', user.id);
-    await supabase.from('addresses').update({ is_default: true }).eq('id', id);
-    toast.success('Default address updated');
-    fetchData();
+    try {
+      await fetch(`${API_URL}/api/addresses/${id}/default`, { method: 'PUT', headers: getHeaders() });
+      toast.success('Default address updated');
+      fetchData();
+    } catch { toast.error('Failed to update'); }
   };
 
   const deleteAddress = async (id: string) => {
-    const { error } = await supabase.from('addresses').delete().eq('id', id);
-    if (error) {
-      if (error.code === '23503') {
-        toast.error('This address is linked to existing orders and cannot be deleted');
-      } else {
-        toast.error('Failed to delete address');
-      }
-      return;
-    }
-    toast.success('Address removed');
-    fetchData();
+    try {
+      const res = await fetch(`${API_URL}/api/addresses/${id}`, { method: 'DELETE', headers: getHeaders() });
+      if (res.ok) { toast.success('Address removed'); fetchData(); }
+      else toast.error('Failed to delete address');
+    } catch { toast.error('Failed to delete address'); }
   };
 
   if (authLoading) return null;
@@ -172,7 +189,7 @@ const ProfilePage = () => {
             ) : (
               <div className="space-y-3">
                 {addresses.map(addr => (
-                  <div key={addr.id} className={`p-4 rounded-lg border transition-all ${addr.is_default ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                  <div key={addr._id} className={`p-4 rounded-lg border transition-all ${addr.is_default ? 'border-primary bg-primary/5' : 'border-border'}`}>
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -187,11 +204,11 @@ const ProfilePage = () => {
                       </div>
                       <div className="flex gap-1">
                         {!addr.is_default && (
-                          <Button variant="ghost" size="sm" onClick={() => setDefault(addr.id)} className="text-xs text-muted-foreground hover:text-primary">
+                          <Button variant="ghost" size="sm" onClick={() => setDefault(addr._id!)} className="text-xs text-muted-foreground hover:text-primary">
                             Set Default
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr.id)} className="text-destructive hover:text-destructive">
+                        <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr._id!)} className="text-destructive hover:text-destructive">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

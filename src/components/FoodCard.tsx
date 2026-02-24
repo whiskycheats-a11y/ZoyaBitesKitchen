@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Leaf, Circle, Plus, Minus, UtensilsCrossed } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
-import { useCart } from '@/contexts/CartContext';
-
-type FoodItem = Tables<'food_items'>;
+import { useCart, type FoodItem } from '@/contexts/CartContext';
 
 export interface FoodCardProps {
   item: FoodItem;
@@ -14,14 +11,14 @@ export interface FoodCardProps {
 
 const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
   const { items, addItem, updateQuantity } = useCart();
-  
+
   const hasVariants = variants && variants.length > 1;
   const [selectedVariantId, setSelectedVariantId] = useState(
-    hasVariants ? (variants.find(v => v.name.includes('(Half)'))?.id || variants[0].id) : item.id
+    hasVariants ? (variants.find(v => v.name.includes('(Half)'))?._id || variants[0]._id) : item._id
   );
-  
-  const activeItem = hasVariants ? variants.find(v => v.id === selectedVariantId)! : item;
-  const cartItem = items.find(i => i.food.id === activeItem.id);
+
+  const activeItem = hasVariants ? variants.find(v => v._id === selectedVariantId)! : item;
+  const cartItem = items.find(i => i.food._id === activeItem._id);
 
   const displayName = hasVariants
     ? activeItem.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim()
@@ -92,16 +89,15 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
           <div className="mt-3 flex gap-1.5">
             {variants.map(v => {
               const label = v.name.includes('(Half)') ? 'Half' : v.name.includes('(Full)') ? 'Full' : v.name;
-              const isActive = v.id === selectedVariantId;
+              const isActive = v._id === selectedVariantId;
               return (
                 <button
-                  key={v.id}
-                  onClick={() => setSelectedVariantId(v.id)}
-                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all border ${
-                    isActive
-                      ? 'bg-primary/10 border-primary/30 text-primary'
-                      : 'bg-muted/20 border-border text-muted-foreground hover:border-primary/15'
-                  }`}
+                  key={v._id}
+                  onClick={() => setSelectedVariantId(v._id)}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all border ${isActive
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'bg-muted/20 border-border text-muted-foreground hover:border-primary/15'
+                    }`}
                 >
                   {label} · ₹{v.price}
                 </button>
@@ -119,7 +115,7 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
                 <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-0.5">
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => updateQuantity(activeItem.id, cartItem.quantity - 1)}
+                    onClick={() => updateQuantity(activeItem._id!, cartItem.quantity - 1)}
                     className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 transition-colors"
                   >
                     <Minus className="w-3 h-3" />
@@ -127,7 +123,7 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
                   <span className="font-semibold w-7 text-center text-sm">{cartItem.quantity}</span>
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => updateQuantity(activeItem.id, cartItem.quantity + 1)}
+                    onClick={() => updateQuantity(activeItem._id!, cartItem.quantity + 1)}
                     className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 transition-colors"
                   >
                     <Plus className="w-3 h-3" />

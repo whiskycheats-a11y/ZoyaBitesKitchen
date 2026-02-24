@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 import FoodCard from '@/components/FoodCard';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -7,30 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import type { FoodItem } from '@/contexts/CartContext';
 
 type Category = {
-    id?: string;
     _id?: string;
     name: string;
-    sortOrder?: number;
-};
-
-type FoodItem = {
-    id?: string;
-    _id?: string;
-    category_id: string | null;
-    name: string;
-    description?: string | null;
-    price: number;
-    image_url?: string | null;
-    is_veg?: boolean;
-    is_available?: boolean;
-    sort_order?: number;
 };
 
 export default function MenuPage() {
-    const [categories, setCategories] = useState<any[]>([]);
-    const [items, setItems] = useState<any[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [items, setItems] = useState<FoodItem[]>([]);
     const [selectedCat, setSelectedCat] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
@@ -155,11 +141,11 @@ export default function MenuPage() {
                         </motion.button>
                         {categories.map(cat => (
                             <motion.button
-                                key={cat.id}
+                                key={cat._id}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => setSelectedCat(cat.id)}
-                                className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${selectedCat === cat.id
+                                onClick={() => setSelectedCat(cat._id!)}
+                                className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${selectedCat === cat._id
                                     ? 'btn-premium'
                                     : 'bg-muted/50 text-muted-foreground border border-border hover:border-primary/20'
                                     }`}

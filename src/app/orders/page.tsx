@@ -2,15 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Loader2, Package, Clock, CheckCircle, XCircle, Truck, ChefHat, ThumbsUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Tables } from '@/integrations/supabase/types';
 
-type Order = Tables<'orders'>;
-type OrderItem = Tables<'order_items'>;
+const API_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) || 'http://localhost:5000';
 
 const allStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 
@@ -25,45 +22,33 @@ const statusConfig: Record<string, { icon: React.ComponentType<{ className?: str
 
 export default function OrdersPage() {
     const { user } = useAuth();
-    const [orders, setOrders] = useState<(Order & { items: OrderItem[] })[]>([]);
+    const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchOrders = async () => {
         if (!user) return;
-        const { data: ordersData } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-
-        if (ordersData) {
-            const withItems = await Promise.all(
-                ordersData.map(async (order) => {
-                    const { data: itemsData } = await supabase
-                        .from('order_items')
-                        .select('*')
-                        .eq('order_id', order.id);
-                    return { ...order, items: itemsData || [] };
-                })
-            );
-            setOrders(withItems);
+        try {
+            const res = await fetch(`${API_URL}/api/orders`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setOrders(data);
+            }
+        } catch (err) {
+            console.error('Fetch orders error', err);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     useEffect(() => {
         if (!user) return;
         fetchOrders();
-
-        // Realtime updates for order status
-        const channel = supabase
-            .channel('my-orders')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-                setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new as Order } : o));
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
+        const interval = setInterval(fetchOrders, 30000);
+        return () => clearInterval(interval);
     }, [user]);
 
     const getStatus = (status: string) => statusConfig[status] || statusConfig.pending;
@@ -96,7 +81,7 @@ export default function OrdersPage() {
 
                             return (
                                 <motion.div
-                                    key={order.id}
+                                    key={order._id}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     className="bg-card rounded-2xl p-6 border border-border/50"
@@ -104,8 +89,8 @@ export default function OrdersPage() {
                                     {/* Header */}
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
                                         <div>
-                                            <p className="font-semibold text-sm sm:text-base text-foreground">Order #{order.id.slice(0, 8)}</p>
-                                            <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                            <p className="font-semibold text-sm sm:text-base text-foreground">Order #{order._id.slice(-8)}</p>
+                                            <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                         </div>
                                         <span className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${isCancelled ? 'bg-red-500/10 text-red-500' :
                                             order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
@@ -162,9 +147,9 @@ export default function OrdersPage() {
 
                                     {/* Items */}
                                     <div className="space-y-1 mb-4">
-                                        {order.items.map(item => (
-                                            <div key={item.id} className="flex justify-between text-sm">
-                                                <span className="text-muted-foreground">{item.item_name} × {item.quantity}</span>
+                                        {(order.items || []).map((item: any) => (
+                                            <div key={item._id || item.name} className="flex justify-between text-sm">
+                                                <span className="text-muted-foreground">{item.name || item.item_name} × {item.quantity}</span>
                                                 <span className="text-foreground">₹{(item.price * item.quantity).toFixed(0)}</span>
                                             </div>
                                         ))}
@@ -172,8 +157,8 @@ export default function OrdersPage() {
 
                                     {/* Footer */}
                                     <div className="border-t border-border pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
-                                        <span className="text-xs text-muted-foreground truncate max-w-full">📍 {order.delivery_address}</span>
-                                        <span className="font-bold text-primary text-lg shrink-0">₹{order.total_amount}</span>
+                                        <span className="text-xs text-muted-foreground truncate max-w-full">📍 {order.deliveryAddress || order.delivery_address}</span>
+                                        <span className="font-bold text-primary text-lg shrink-0">₹{order.totalAmount || order.total_amount}</span>
                                     </div>
                                 </motion.div>
                             );
