@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { MapPin, Plus, Trash2, Star, User, Mail } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://zoyabiteskitchen.onrender.com';
+const API_URL = '';
 
 type Address = {
   _id?: string;

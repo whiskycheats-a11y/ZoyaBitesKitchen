@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 import { Loader2, Package, Clock, CheckCircle, XCircle, Truck, ChefHat, ThumbsUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://zoyabiteskitchen.onrender.com';
+const API_URL = '';
 
 const allStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 

@@ -1,41 +1,21 @@
 import { useState } from "react";
-import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
 
 export const useGoogleAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const signInWithGoogle = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      setUser(result.user);
-      return result.user;
-    } catch (err: any) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+    throw new Error('Google sign-in is not available. Use email/password.');
   };
 
   const logout = async () => {
-    setLoading(true);
-    try {
-      await signOut(auth);
-      setUser(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setUser(null);
   };
 
-  const checkAuthState = (callback: (user: User | null) => void) => {
-    return onAuthStateChanged(auth, callback);
+  const checkAuthState = (callback: (user: any) => void) => {
+    callback(null);
+    return () => {};
   };
 
   return {

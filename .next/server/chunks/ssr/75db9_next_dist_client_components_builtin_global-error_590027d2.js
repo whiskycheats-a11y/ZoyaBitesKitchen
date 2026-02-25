@@ -1,3 +1,0 @@
-module.exports=[98231,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(96750);a.n(d("[project]/Music/ZoyaBitesKitchen/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},42374,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(96750);a.n(d("[project]/Music/ZoyaBitesKitchen/node_modules/next/dist/client/components/builtin/global-error.js"))},20244,a=>{"use strict";a.i(98231);var b=a.i(42374);a.n(b)}];
-
-//# sourceMappingURL=75db9_next_dist_client_components_builtin_global-error_590027d2.js.map

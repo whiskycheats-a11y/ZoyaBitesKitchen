@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +13,7 @@ import { api } from '@/lib/api';
 
 type Address = {
   id: string;
+  _id?: string;
   user_id: string;
   label: string;
   address_line: string;
@@ -66,41 +65,45 @@ const CheckoutPage = () => {
 
   const fetchAddresses = async () => {
     if (!user) return;
-    const q = query(collection(db, 'users', user.id, 'addresses'), orderBy('created_at', 'desc'));
-    const snap = await getDocs(q);
-    const list: Address[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Address, 'id'>) }));
-    setAddresses(list);
-    const def = list.find(a => a.is_default);
-    if (def) setSelectedAddress(def.id);
-    else if (list.length > 0) setSelectedAddress(list[0].id);
-    else setShowNewAddress(true);
+    try {
+      const list = await api.getAddresses();
+      const mapped: Address[] = (Array.isArray(list) ? list : []).map((a: any) => ({
+        id: a._id || a.id,
+        _id: a._id,
+        user_id: a.userId || a.user_id,
+        label: a.label || 'Home',
+        address_line: a.address_line,
+        city: a.city,
+        state: a.state || '',
+        pincode: a.pincode,
+        is_default: a.is_default || false,
+      }));
+      setAddresses(mapped);
+      const def = mapped.find(a => a.is_default);
+      if (def) setSelectedAddress(def.id);
+      else if (mapped.length > 0) setSelectedAddress(mapped[0].id);
+      else setShowNewAddress(true);
+    } catch {
+      setShowNewAddress(true);
+    }
   };
 
   const saveNewAddress = async () => {
     if (!user) return;
     try {
-      const isDefault = addresses.length === 0;
-      const docRef = await addDoc(collection(db, 'users', user.id, 'addresses'), {
-        user_id: user.id,
+      const saved = await api.saveAddress({
         ...newAddress,
-        is_default: isDefault,
-        created_at: new Date().toISOString(),
+        is_default: addresses.length === 0,
       });
-      if (!isDefault) {
-        const currentDefault = addresses.find(a => a.is_default);
-        if (currentDefault) {
-          await updateDoc(doc(db, 'users', user.id, 'addresses', currentDefault.id), { is_default: false });
-        }
-      }
       const created: Address = {
-        id: docRef.id,
+        id: saved._id || saved.id,
+        _id: saved._id,
         user_id: user.id,
         ...newAddress,
-        is_default: isDefault,
-        created_at: new Date().toISOString(),
+        is_default: addresses.length === 0,
       };
       setAddresses(prev => [created, ...prev]);
-      setSelectedAddress(docRef.id);
+      setSelectedAddress(created.id);
       setShowNewAddress(false);
       setNewAddress({ address_line: '', city: '', state: '', pincode: '', label: 'Home' });
     } catch {
@@ -119,33 +122,41 @@ const CheckoutPage = () => {
       const addr = addresses.find(a => a.id === selectedAddress);
       const deliveryStr = `${addr?.address_line}, ${addr?.city}, ${addr?.state} - ${addr?.pincode}`;
 
-    // Simplified: generate a temporary client-side order reference
-    const orderId = `rzp_${Date.now().toString(36)}`;
+      const orderData = await api.createOrder({
+        items: items.map(({ food, quantity }) => ({
+          productId: food._id || food.id,
+          name: food.name,
+          quantity,
+          price: food.price,
+        })),
+        totalAmount: grandTotal,
+        deliveryAddress: deliveryStr,
+        notes,
+      });
 
-      // 3. Create Razorpay order via backend
-      const rzpData = await api.createRazorpayOrder(grandTotal, order.id);
+      const orderId = orderData.order?._id || orderData.order?.id;
 
-      // 4. Open Razorpay checkout
+      const rzpData = await api.createRazorpayOrder(grandTotal, orderId);
+
       const options = {
         key: rzpData.razorpay_key_id,
         amount: rzpData.amount,
         currency: 'INR',
         name: 'ZoyaBites',
-    description: `Order #${orderId.slice(0, 8)}`,
-    order_id: rzpData.razorpay_order_id,
+        description: `Order #${orderId?.slice(0, 8)}`,
+        order_id: rzpData.razorpay_order_id,
         prefill: {
           email: user.email,
-          name: user.user_metadata?.full_name || '',
+          name: user.user_metadata?.full_name || user.name || '',
         },
         theme: { color: '#c4873b' },
         handler: async (response: any) => {
-          // 5. Verify payment via backend
           try {
             await api.verifyRazorpayPayment({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-          order_id: orderId,
+              order_id: orderId,
             });
 
             clearCart();
@@ -157,7 +168,6 @@ const CheckoutPage = () => {
         },
         modal: {
           ondismiss: async () => {
-        // Payment cancelled — no DB write in this simplified flow
             toast.error('Payment cancelled');
             setLoading(false);
           },
@@ -179,7 +189,6 @@ const CheckoutPage = () => {
       <div className="pt-24 pb-16 container mx-auto px-4 max-w-2xl">
         <h1 className="font-display text-4xl font-bold mb-8">Checkout</h1>
 
-        {/* Address selection */}
         <div className="bg-card rounded-xl p-6 border border-border/50 mb-6">
           <h2 className="font-display text-xl font-semibold mb-4">Delivery Address</h2>
           {addresses.length > 0 && !showNewAddress && (
@@ -219,18 +228,16 @@ const CheckoutPage = () => {
           )}
         </div>
 
-        {/* Order notes */}
         <div className="bg-card rounded-xl p-6 border border-border/50 mb-6">
           <h2 className="font-display text-xl font-semibold mb-4">Order Notes</h2>
           <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special instructions? (optional)" />
         </div>
 
-        {/* Order summary */}
         <div className="bg-card rounded-xl p-6 border border-border/50">
           <h2 className="font-display text-xl font-semibold mb-4">Order Summary</h2>
           <div className="space-y-2 mb-4">
             {items.map(({ food, quantity }) => (
-              <div key={food.id} className="flex justify-between text-sm">
+              <div key={food._id || food.id} className="flex justify-between text-sm">
                 <span>{food.name} × {quantity}</span>
                 <span className="font-medium">₹{(food.price * quantity).toFixed(2)}</span>
               </div>

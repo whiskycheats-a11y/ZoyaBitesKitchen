@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const Razorpay = require('razorpay');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware
@@ -16,6 +16,7 @@ const allowedOrigins = [
   'https://zoyabites.com',
   'https://www.zoyabites.com',
   'http://localhost:3000',
+  'http://localhost:5000',
   'http://localhost:5173',
   'http://localhost:4173',
 ];

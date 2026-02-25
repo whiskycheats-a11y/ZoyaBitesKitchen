@@ -36,8 +36,7 @@ const MenuPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const res = await fetch(`${baseUrl}/api/menu`);
+        const res = await fetch(`/api/menu`);
         const data = await res.json();
         if (!res.ok) {
           console.error('Menu load error', data);
