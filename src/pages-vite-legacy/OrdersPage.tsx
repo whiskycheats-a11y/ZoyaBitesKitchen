@@ -5,7 +5,8 @@ import Footer from '@/components/Footer';
 import { Loader2, Package, Clock, CheckCircle, XCircle, Truck, ChefHat, ThumbsUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_URL = '';
+import { API_BASE } from '@/lib/api';
+const API_URL = API_BASE;
 
 const allStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 

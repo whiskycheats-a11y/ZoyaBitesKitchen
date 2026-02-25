@@ -4,6 +4,7 @@ import { Chrome } from "lucide-react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_BASE } from "@/lib/api";
 
 interface GoogleSignInButtonProps {
   onSuccess?: (user: unknown) => void;
@@ -21,7 +22,7 @@ export const GoogleSignInButton = ({ onSuccess, onError }: GoogleSignInButtonPro
       const idToken = await result.user.getIdToken();
       const firebaseUser = result.user;
 
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch(`${API_BASE}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
+import { API_BASE } from "@/lib/api";
 
 export const useGoogleAuth = () => {
   const [user, setUser] = useState<any>(null);
@@ -14,7 +15,7 @@ export const useGoogleAuth = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
 
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch(`${API_BASE}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),

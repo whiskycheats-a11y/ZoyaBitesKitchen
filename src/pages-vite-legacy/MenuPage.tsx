@@ -7,6 +7,7 @@ import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { API_BASE } from '@/lib/api';
 
 type Category = {
   _id: string;
@@ -36,7 +37,7 @@ const MenuPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch(`/api/menu`);
+        const res = await fetch(`${API_BASE}/api/menu`);
         const data = await res.json();
         if (!res.ok) {
           console.error('Menu load error', data);

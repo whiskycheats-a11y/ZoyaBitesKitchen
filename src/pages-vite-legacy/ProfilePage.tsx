@@ -10,7 +10,8 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { MapPin, Plus, Trash2, Star, User, Mail } from 'lucide-react';
 
-const API_URL = '';
+import { API_BASE } from '@/lib/api';
+const API_URL = API_BASE;
 
 type Address = {
   _id?: string;

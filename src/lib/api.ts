@@ -1,3 +1,5 @@
+const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
+
 const getHeaders = () => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   return {
@@ -7,27 +9,43 @@ const getHeaders = () => {
 };
 
 const apiFetch = async (url: string, options: any = {}) => {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+  const res = await fetch(fullUrl, options);
+  const text = await res.text();
+  let data;
   try {
-    const res = await fetch(url, options);
-    const data = await res.json();
-    if (!res.ok) {
-      if (data.error) throw new Error(data.error);
-      throw new Error(`Request failed with status ${res.status}`);
-    }
-    return data;
-  } catch (err) {
-    throw err;
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error('Server returned invalid response');
   }
+  if (!res.ok) {
+    if (data.error) throw new Error(data.error);
+    throw new Error(`Request failed with status ${res.status}`);
+  }
+  return data;
 };
+
+export { API_BASE };
 
 export const api = {
   uploadImage: async (file: File): Promise<{ url: string }> => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiFetch(`/api/upload-image`, {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    const res = await fetch(`${API_BASE}/api/upload-image`, {
       method: 'POST',
+      headers: { 'Authorization': `Bearer ${token || ''}` },
       body: formData,
     });
+    const text = await res.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error('Upload failed: invalid response');
+    }
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
   },
 
   createRazorpayOrder: async (amount: number, orderId: string) => {
@@ -172,6 +190,20 @@ export const api = {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify({ isActive }),
+    });
+  },
+
+  verifyAdminCode: async (code: string) => {
+    return apiFetch(`/api/admin/verify-code`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  getManageUsers: async () => {
+    return apiFetch(`/api/manage-users`, {
+      headers: getHeaders(),
     });
   },
 };

@@ -9,6 +9,20 @@ ZoyaBites is a food ordering web application built with a Vite/React frontend an
 - **Database**: MongoDB Atlas (external)
 - **Image Storage**: Cloudinary (external)
 - **Payments**: Razorpay (external)
+- **Auth**: Firebase Auth (Google Sign-In) + JWT (email/password)
+
+## Production Deployment
+- **Frontend**: `zoyabites.com` (static site build)
+- **Backend**: `https://zoyabiteskitchen.onrender.com` (Render)
+- Frontend connects to backend via `VITE_BACKEND_URL` env var
+- In dev mode, Vite proxy handles `/api/*` requests to `localhost:3001`
+- In production, `API_BASE` from `src/lib/api.ts` prefixes all API calls with the Render URL
+
+## API Configuration
+- All API calls go through `API_BASE` exported from `src/lib/api.ts`
+- Dev: `API_BASE = ''` (uses Vite proxy to localhost:3001)
+- Prod: `API_BASE = VITE_BACKEND_URL` (uses Render backend URL)
+- Files using direct fetch must import `API_BASE` from `@/lib/api`
 
 ## Project Structure
 ```
@@ -21,7 +35,7 @@ ZoyaBites is a food ordering web application built with a Vite/React frontend an
 │   │   └── ui/             # shadcn/ui components
 │   ├── contexts/           # Auth & Cart context providers
 │   ├── hooks/              # Custom hooks
-│   └── lib/                # API client, utils
+│   └── lib/                # API client (api.ts), firebase config, utils
 ├── server/                 # Backend source
 │   ├── index.js            # Express server with all routes
 │   ├── .env                # Backend environment variables
@@ -37,7 +51,7 @@ ZoyaBites is a food ordering web application built with a Vite/React frontend an
 - The workflow "Start application" runs `bash start.sh`
 
 ## Key APIs (Backend)
-- Auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+- Auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, `/api/auth/google`
 - Profile: `/api/profile` (GET/PUT)
 - Addresses: `/api/addresses` (CRUD)
 - Menu: `/api/menu` (public), `/api/categories`, `/api/products`
@@ -49,7 +63,7 @@ ZoyaBites is a food ordering web application built with a Vite/React frontend an
 ## Authentication
 - Email/password auth via JWT (backend handles registration, login, token verification)
 - Google Sign-In via Firebase Auth (popup flow → Firebase ID token → backend verifies via Google tokeninfo API → creates/finds user in MongoDB → issues JWT)
-- Backend endpoint: `/api/auth/google` accepts `{ idToken }` from Firebase
+- Backend endpoint: `/api/auth/google` accepts `{ idToken, email, name }` from Firebase
 
 ## Environment Variables
 Backend (.env in server/):
@@ -60,6 +74,7 @@ Backend (.env in server/):
 - `PORT` - Backend port (3001)
 
 Frontend (Replit env vars, VITE_ prefixed):
+- `VITE_BACKEND_URL` - Production backend URL (https://zoyabiteskitchen.onrender.com)
 - `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`
