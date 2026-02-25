@@ -20,7 +20,7 @@ const statusConfig: Record<string, { icon: any; color: string; label: string }> 
 };
 
 const OrdersPage = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,10 +32,22 @@ const OrdersPage = () => {
           'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
         }
       });
+      if (!res.ok) return;
       const data = await res.json();
-      if (res.ok) {
-        setOrders(data);
-      }
+      const mapped = (Array.isArray(data) ? data : []).map((o: any) => ({
+        id: o._id || o.id,
+        status: o.status || 'pending',
+        created_at: o.createdAt || o.created_at,
+        items: (o.items || []).map((item: any) => ({
+          id: item._id || item.id || item.productId,
+          item_name: item.name || item.item_name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        delivery_address: o.deliveryAddress || o.delivery_address || '',
+        total_amount: o.totalAmount || o.total_amount || 0,
+      }));
+      setOrders(mapped);
     } catch (err) {
       console.error('Fetch orders error', err);
     } finally {
@@ -44,11 +56,12 @@ const OrdersPage = () => {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (authLoading) return;
+    if (!user) { setLoading(false); return; }
     fetchOrders();
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, authLoading]);
 
   const getStatus = (status: string) => statusConfig[status] || statusConfig.pending;
 
