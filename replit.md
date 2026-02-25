@@ -46,6 +46,11 @@ ZoyaBites is a food ordering web application built with a Vite/React frontend an
 - Admin: `/api/admin/verify-code`, `/api/admin/access-codes`, `/api/manage-users`
 - Upload: `/api/upload-image` (Cloudinary)
 
+## Authentication
+- Email/password auth via JWT (backend handles registration, login, token verification)
+- Google Sign-In via Firebase Auth (popup flow → Firebase ID token → backend verifies via Google tokeninfo API → creates/finds user in MongoDB → issues JWT)
+- Backend endpoint: `/api/auth/google` accepts `{ idToken }` from Firebase
+
 ## Environment Variables
 Backend (.env in server/):
 - `MONGODB_URI` - MongoDB Atlas connection string
@@ -53,3 +58,8 @@ Backend (.env in server/):
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
 - `PORT` - Backend port (3001)
+
+Frontend (Replit env vars, VITE_ prefixed):
+- `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`

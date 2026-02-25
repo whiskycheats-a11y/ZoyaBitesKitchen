@@ -202,6 +202,39 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================
+// ROUTE: Auth - Google Sign-In
+// ============================================
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: 'ID token required' });
+
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+    const payload = await response.json();
+
+    if (!response.ok || !payload.email) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
+    let user = await User.findOne({ email: payload.email });
+    if (!user) {
+      user = await User.create({
+        email: payload.email,
+        name: payload.name || payload.email.split('@')[0],
+        password: null,
+        roles: [],
+      });
+    }
+
+    const token = generateToken(user);
+    res.json({ token, user: { id: user._id, email: user.email, name: user.name, roles: user.roles } });
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.status(500).json({ error: 'Google sign-in failed' });
+  }
+});
+
+// ============================================
 // ROUTE: Auth - Sync (Token recovery)
 // ============================================
 app.post('/api/auth/sync', async (req, res) => {
