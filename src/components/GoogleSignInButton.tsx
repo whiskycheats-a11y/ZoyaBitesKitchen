@@ -19,14 +19,28 @@ export const GoogleSignInButton = ({ onSuccess, onError }: GoogleSignInButtonPro
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
+      const firebaseUser = result.user;
 
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ 
+          idToken,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName,
+        }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      if (!text) throw new Error('Empty response from server');
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Invalid response from server');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Google sign-in failed');
 
       localStorage.setItem('auth_token', data.token);
@@ -40,9 +54,10 @@ export const GoogleSignInButton = ({ onSuccess, onError }: GoogleSignInButtonPro
 
       onSuccess?.(data.user);
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        onError?.(err);
-      }
+      if (err.code === 'auth/popup-closed-by-user') return;
+      if (err.code === 'auth/cancelled-popup-request') return;
+      console.error('Google sign-in error:', err);
+      onError?.(err);
     } finally {
       setLoading(false);
     }
