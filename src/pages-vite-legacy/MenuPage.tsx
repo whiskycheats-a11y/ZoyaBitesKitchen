@@ -35,8 +35,23 @@ const MenuPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    const CACHE_KEY = 'menu_cache';
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
     const fetchData = async () => {
       try {
+        // Check sessionStorage cache first
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, ts } = JSON.parse(cached);
+          if (Date.now() - ts < CACHE_TTL) {
+            setCategories(data.categories || []);
+            setItems(data.items || []);
+            setLoading(false);
+            return;
+          }
+        }
+
         const res = await fetch(`${API_BASE}/api/menu`);
         const data = await res.json();
         if (!res.ok) {
@@ -45,6 +60,8 @@ const MenuPage = () => {
         } else {
           setCategories(data.categories || []);
           setItems(data.items || []);
+          // Save to cache
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load menu';

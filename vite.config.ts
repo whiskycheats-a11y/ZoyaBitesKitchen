@@ -23,4 +23,19 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Separate heavy vendor chunks
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-framer': ['framer-motion'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-toast'],
+          'vendor-query': ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
 }));
+

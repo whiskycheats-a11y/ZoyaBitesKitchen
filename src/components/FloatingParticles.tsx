@@ -7,10 +7,16 @@ const FloatingParticles = ({ count = 20 }: { count?: number }) => {
     const container = containerRef.current;
     if (!container) return;
 
+    // Skip on reduced-motion preference (accessibility + performance)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // Use fewer particles on mobile to keep scroll smooth
+    const actualCount = window.innerWidth < 768 ? Math.min(count, 5) : count;
+
     // Clear existing
     container.innerHTML = '';
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < actualCount; i++) {
       const particle = document.createElement('div');
       const size = Math.random() * 4 + 2;
       const delay = Math.random() * 15;
@@ -42,3 +48,4 @@ const FloatingParticles = ({ count = 20 }: { count?: number }) => {
 };
 
 export default FloatingParticles;
+

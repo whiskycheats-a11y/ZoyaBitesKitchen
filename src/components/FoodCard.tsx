@@ -28,7 +28,7 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.05, ease: [0.25, 0.1, 0.25, 1] }}
+      transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3), ease: [0.25, 0.1, 0.25, 1] }}
       className="group flex flex-col rounded-xl bg-card border border-border hover:border-primary/15 transition-all duration-500 overflow-hidden hover:shadow-[0_8px_30px_-12px_hsl(var(--primary)/0.12)]"
     >
       {/* Image */}
@@ -39,6 +39,7 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
             alt={activeItem.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full bg-muted/50 flex items-center justify-center">

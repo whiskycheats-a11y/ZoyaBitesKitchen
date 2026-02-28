@@ -43,18 +43,30 @@ export const useCountUp = (target: number, duration = 2000, start = false) => {
   return count;
 };
 
-/** Custom hook for parallax on mouse move */
+/** Custom hook for parallax on mouse move — throttled to 60fps via rAF */
 export const useMouseParallax = (intensity = 0.02) => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    let rafId: number;
+    let latestX = 0, latestY = 0;
+
     const handleMouse = (e: MouseEvent) => {
-      const x = (e.clientX - window.innerWidth / 2) * intensity;
-      const y = (e.clientY - window.innerHeight / 2) * intensity;
-      setPosition({ x, y });
+      latestX = (e.clientX - window.innerWidth / 2) * intensity;
+      latestY = (e.clientY - window.innerHeight / 2) * intensity;
     };
-    window.addEventListener('mousemove', handleMouse);
-    return () => window.removeEventListener('mousemove', handleMouse);
+
+    const update = () => {
+      setPosition({ x: latestX, y: latestY });
+      rafId = requestAnimationFrame(update);
+    };
+
+    rafId = requestAnimationFrame(update);
+    window.addEventListener('mousemove', handleMouse, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouse);
+      cancelAnimationFrame(rafId);
+    };
   }, [intensity]);
 
   return position;
