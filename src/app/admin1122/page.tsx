@@ -48,7 +48,7 @@ export default function AdminPage() {
     const [editingCat, setEditingCat] = useState<string | null>(null);
 
     // Item form
-    const [itemForm, setItemForm] = useState({ name: '', description: '', price: '', category_id: '', image_url: '', is_veg: true, is_available: true });
+    const [itemForm, setItemForm] = useState({ name: '', description: '', price: '', category_id: '', image_url: '', is_veg: true as boolean | null, is_available: true });
     const [hasVariants, setHasVariants] = useState(false);
     const [halfPrice, setHalfPrice] = useState('');
     const [fullPrice, setFullPrice] = useState('');
@@ -475,8 +475,18 @@ export default function AdminPage() {
                                             <Label className="text-sm cursor-pointer">Half / Full</Label>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Switch checked={itemForm.is_veg} onCheckedChange={v => setItemForm(p => ({ ...p, is_veg: v }))} />
-                                            <Label className="text-sm cursor-pointer">Veg</Label>
+                                            <select
+                                                value={itemForm.is_veg === true ? 'veg' : itemForm.is_veg === false ? 'non-veg' : 'none'}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setItemForm(p => ({ ...p, is_veg: val === 'veg' ? true : val === 'non-veg' ? false : null }));
+                                                }}
+                                                className="h-9 px-2 rounded-lg border border-input bg-muted/30 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                            >
+                                                <option value="veg">Veg</option>
+                                                <option value="non-veg">Non-Veg</option>
+                                                <option value="none">No Tag</option>
+                                            </select>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Switch checked={itemForm.is_available} onCheckedChange={v => setItemForm(p => ({ ...p, is_available: v }))} />
@@ -504,11 +514,11 @@ export default function AdminPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <h3 className="font-semibold text-sm truncate font-display">{item.name}</h3>
-                                            {item.is_veg ? (
+                                            {item.is_veg === true ? (
                                                 <span className="w-3.5 h-3.5 rounded-sm border-2 border-green-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-green-500" /></span>
-                                            ) : (
+                                            ) : item.is_veg === false ? (
                                                 <span className="w-3.5 h-3.5 rounded-sm border-2 border-red-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>
-                                            )}
+                                            ) : null}
                                         </div>
                                         <p className="text-xs text-muted-foreground mt-0.5">₹{item.price} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}</p>
                                         {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
@@ -525,7 +535,7 @@ export default function AdminPage() {
                                             const halfItem = matchingVariants.find(v => v.name.includes('(Half)'));
                                             const fullItem = matchingVariants.find(v => v.name.includes('(Full)'));
                                             setEditingItem(item._id);
-                                            setItemForm({ name: isVariant ? baseName : item.name, description: item.description || '', price: isVariant ? '' : String(item.price), category_id: item.category_id, image_url: item.image_url || '', is_veg: item.is_veg ?? true, is_available: item.is_available ?? true });
+                                            setItemForm({ name: isVariant ? baseName : item.name, description: item.description || '', price: isVariant ? '' : String(item.price), category_id: item.category_id, image_url: item.image_url || '', is_veg: item.is_veg !== undefined ? item.is_veg : null, is_available: item.is_available ?? true });
                                             setHasVariants(isVariant && matchingVariants.length > 1);
                                             setHalfPrice(halfItem ? String(halfItem.price) : '');
                                             setFullPrice(fullItem ? String(fullItem.price) : '');

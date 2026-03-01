@@ -55,17 +55,19 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
         <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-50" />
 
         {/* Veg/Non-veg tag */}
-        <div className="absolute top-2.5 left-2.5">
-          {activeItem.is_veg ? (
-            <span className="tag-veg">
-              <Leaf className="w-3 h-3" /> Veg
-            </span>
-          ) : (
-            <span className="tag-nonveg">
-              <Circle className="w-3 h-3" /> Non-Veg
-            </span>
-          )}
-        </div>
+        {activeItem.is_veg === true || activeItem.is_veg === false ? (
+          <div className="absolute top-2.5 left-2.5">
+            {activeItem.is_veg ? (
+              <span className="tag-veg">
+                <Leaf className="w-3 h-3" /> Veg
+              </span>
+            ) : (
+              <span className="tag-nonveg">
+                <Circle className="w-3 h-3" /> Non-Veg
+              </span>
+            )}
+          </div>
+        ) : null}
 
         {!activeItem.is_available && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
