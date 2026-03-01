@@ -51,10 +51,7 @@ const MenuPage = () => {
             setLoading(false); // Drop loading state instantly
             isCached = true;
 
-            // Optional: Skip background refresh if VERY fresh (e.g., < 5 mins)
-            if (Date.now() - ts < 5 * 60 * 1000) {
-              return;
-            }
+            // Removed the 5-minute hard skip so SWR always fetches fresh data in the background
           } catch (e) {
             console.error('Cache parse error', e);
           }
