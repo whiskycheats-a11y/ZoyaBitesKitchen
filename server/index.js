@@ -780,7 +780,7 @@ app.delete('/api/products/:id', async (req, res) => {
 app.get('/api/admin/orders', async (req, res) => {
   try {
     if (!await checkAdminAccess(req)) return res.status(403).json({ error: 'Admin only' });
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find().populate('userId', 'name email phone').sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });

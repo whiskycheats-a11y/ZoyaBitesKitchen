@@ -31,7 +31,12 @@ type FoodItem = {
 };
 type Order = {
   _id: string;
-  userId: string;
+  userId: {
+    _id: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | string;
   items: any[];
   totalAmount: number;
   status: string;
@@ -206,8 +211,13 @@ const AdminPage = () => {
   };
 
   const deleteOrder = async (orderId: string) => {
-    // MongoDB Delete logic would go here, omitting for safety if not strictly needed
-    toast.info('Delete function not implemented for MongoDB yet');
+    try {
+      await api.deleteAdminOrder(orderId);
+      toast.success('Order deleted');
+      fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const handleAdminLogin = async () => {
@@ -669,6 +679,22 @@ const AdminPage = () => {
                       }`}>{order.status}</span>
                   </div>
                 </div>
+                {typeof order.userId === 'object' && (
+                  <div className="bg-muted/20 border border-border/50 rounded-lg p-3 mb-3 flex flex-col sm:flex-row gap-3 sm:gap-6">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Customer</p>
+                      <p className="text-sm font-medium">{order.userId.name || 'Unknown'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Phone</p>
+                      <p className="text-sm font-medium">{order.userId.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Email</p>
+                      <p className="text-sm font-medium">{order.userId.email || 'N/A'}</p>
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mb-2">📍 {order.delivery_address || 'Address N/A'}</p>
                 {order.notes && <p className="text-xs text-muted-foreground mb-2">📝 {order.notes}</p>}
                 <div className="flex flex-wrap gap-1.5 items-center pt-2 border-t border-border/30">

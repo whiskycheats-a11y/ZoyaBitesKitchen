@@ -108,6 +108,12 @@ export const api = {
       headers: getHeaders(),
     });
   },
+  deleteAdminOrder: async (id: string) => {
+    return apiFetch(`/api/orders/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+  },
   createOrder: async (data: any) => {
     return apiFetch(`/api/orders`, {
       method: 'POST',
