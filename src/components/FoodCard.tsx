@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Leaf, Circle, Plus, Minus, UtensilsCrossed } from 'lucide-react';
 import { useCart, type FoodItem } from '@/contexts/CartContext';
 
@@ -8,6 +7,14 @@ export interface FoodCardProps {
   variants?: FoodItem[];
   index?: number;
 }
+
+const getOptimizedUrl = (url?: string | null) => {
+  if (!url) return undefined;
+  if (url.includes('res.cloudinary.com')) {
+    return url.replace('/upload/', '/upload/w_600,q_auto,f_auto/');
+  }
+  return url;
+};
 
 const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
   const { items, addItem, updateQuantity } = useCart();
@@ -25,17 +32,15 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
     : activeItem.name;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3), ease: [0.25, 0.1, 0.25, 1] }}
-      className="group flex flex-col rounded-xl bg-card border border-border hover:border-primary/15 transition-all duration-500 overflow-hidden hover:shadow-[0_8px_30px_-12px_hsl(var(--primary)/0.12)]"
+    <div
+      className="group flex flex-col rounded-xl bg-card border border-border hover:border-primary/15 transition-all duration-500 overflow-hidden hover:shadow-[0_8px_30px_-12px_hsl(var(--primary)/0.12)] animate-in fade-in zoom-in-95 fill-mode-both"
+      style={{ animationDuration: '500ms', animationDelay: `${Math.min(index * 50, 400)}ms` }}
     >
       {/* Image */}
       <div className="relative h-40 sm:h-44 overflow-hidden flex-shrink-0">
         {activeItem.image_url ? (
           <img
-            src={activeItem.image_url}
+            src={getOptimizedUrl(activeItem.image_url)}
             alt={activeItem.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             loading="lazy"
@@ -114,37 +119,34 @@ const FoodCard = ({ item, variants, index = 0 }: FoodCardProps) => {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">In cart</span>
                 <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-0.5">
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
+                  <button
                     onClick={() => updateQuantity(activeItem._id!, cartItem.quantity - 1)}
-                    className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 transition-colors"
+                    className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 active:scale-90 transition-all"
                   >
                     <Minus className="w-3 h-3" />
-                  </motion.button>
+                  </button>
                   <span className="font-semibold w-7 text-center text-sm">{cartItem.quantity}</span>
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
+                  <button
                     onClick={() => updateQuantity(activeItem._id!, cartItem.quantity + 1)}
-                    className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 transition-colors"
+                    className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:border-primary/20 active:scale-90 transition-all"
                   >
                     <Plus className="w-3 h-3" />
-                  </motion.button>
+                  </button>
                 </div>
               </div>
             ) : (
-              <motion.button
-                whileTap={{ scale: 0.98 }}
+              <button
                 onClick={() => addItem(activeItem)}
-                className="w-full btn-premium py-2 rounded-lg text-xs flex items-center justify-center gap-1.5"
+                className="w-full btn-premium py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add to Cart</span>
-              </motion.button>
+              </button>
             )
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

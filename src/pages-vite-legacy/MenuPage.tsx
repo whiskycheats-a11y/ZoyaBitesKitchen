@@ -35,40 +35,53 @@ const MenuPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const CACHE_KEY = 'menu_cache';
-    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+    const CACHE_KEY = 'zoyabites_menu_cache';
+    const CACHE_TTL = 15 * 60 * 1000; // 15 minutes fresh
 
     const fetchData = async () => {
+      let isCached = false;
       try {
-        // Check sessionStorage cache first
-        const cached = sessionStorage.getItem(CACHE_KEY);
+        // 1. Attempt instantaneous load from localStorage
+        const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
-          const { data, ts } = JSON.parse(cached);
-          if (Date.now() - ts < CACHE_TTL) {
+          try {
+            const { data, ts } = JSON.parse(cached);
             setCategories(data.categories || []);
             setItems(data.items || []);
-            setLoading(false);
-            return;
+            setLoading(false); // Drop loading state instantly
+            isCached = true;
+
+            // Optional: Skip background refresh if VERY fresh (e.g., < 5 mins)
+            if (Date.now() - ts < 5 * 60 * 1000) {
+              return;
+            }
+          } catch (e) {
+            console.error('Cache parse error', e);
           }
         }
 
+        // 2. Fetch fresh data (Acts as background refresh if we already showed cached data)
         const res = await fetch(`${API_BASE}/api/menu`);
         const data = await res.json();
         if (!res.ok) {
-          console.error('Menu load error', data);
-          toast.error(data.error || 'Failed to load menu');
+          if (!isCached) {
+            console.error('Menu load error', data);
+            toast.error(data.error || 'Failed to load menu');
+          }
         } else {
           setCategories(data.categories || []);
           setItems(data.items || []);
-          // Save to cache
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+          // Save to persistent cache so next tab/visit is fast
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load menu';
-        console.error('Menu load exception', err);
-        toast.error(message);
+        if (!isCached) {
+          const message = err instanceof Error ? err.message : 'Failed to load menu';
+          console.error('Menu load exception', err);
+          toast.error(message);
+        }
       } finally {
-        setLoading(false);
+        if (!isCached) setLoading(false);
       }
     };
     fetchData();
