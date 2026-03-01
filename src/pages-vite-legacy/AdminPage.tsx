@@ -70,6 +70,7 @@ const AdminPage = () => {
   const [halfPrice, setHalfPrice] = useState('');
   const [fullPrice, setFullPrice] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editingVariantIds, setEditingVariantIds] = useState<{ half: string | null, full: string | null }>({ half: null, full: null });
   const [showItemForm, setShowItemForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,10 +162,10 @@ const AdminPage = () => {
         const baseName = itemForm.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
         const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
 
-        // Handling variants sequentially for simplicity
-        await api.saveProduct(null, { ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) });
-        await api.saveProduct(null, { ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) });
-        toast.success('Item added with Half/Full variants');
+        // Handling variants sequentially. Pass the explicit editing variant ID if we are grouping edits
+        await api.saveProduct(editingVariantIds.half, { ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) });
+        await api.saveProduct(editingVariantIds.full, { ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) });
+        toast.success(editingItem ? 'Variants updated' : 'Item added with Half/Full variants');
       } else {
         if (!itemForm.price) { toast.error('Price is required'); return; }
         const payload = { ...itemForm, price: parseFloat(itemForm.price) };
@@ -176,6 +177,7 @@ const AdminPage = () => {
       setHalfPrice('');
       setFullPrice('');
       setEditingItem(null);
+      setEditingVariantIds({ half: null, full: null });
       setShowItemForm(false);
       fetchItems();
     } catch (err: any) {
@@ -454,7 +456,7 @@ const AdminPage = () => {
         {/* Items tab */}
         {tab === 'items' && (
           <div className="space-y-6">
-            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
+            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); setEditingVariantIds({ half: null, full: null }); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
               {showItemForm ? 'Hide Form' : <><Plus className="w-4 h-4 mr-1.5" /> Add Item</>}
             </Button>
             {showItemForm && (
@@ -531,53 +533,98 @@ const AdminPage = () => {
 
             {/* Items Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {items.map(item => (
-                <div key={item._id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center text-lg">🍽️</div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-semibold text-sm truncate">{item.name}</h3>
-                      {item.is_veg ? (
-                        <span className="w-3.5 h-3.5 rounded-sm border-2 border-green-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-green-500" /></span>
-                      ) : (
-                        <span className="w-3.5 h-3.5 rounded-sm border-2 border-red-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>
-                      )}
+              {(() => {
+                const groupedItems: { item: FoodItem, variants: FoodItem[] }[] = [];
+                const used = new Set<string>();
+
+                for (const iter of items) {
+                  if (used.has(iter._id)) continue;
+                  const baseName = iter.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
+
+                  const matchingVariants = items.filter(i =>
+                    i.category_id === iter.category_id &&
+                    i.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() === baseName &&
+                    (i.name.includes('(Half)') || i.name.includes('(Full)'))
+                  );
+
+                  if (matchingVariants.length > 1) {
+                    matchingVariants.forEach(v => used.add(v._id));
+                    groupedItems.push({ item: matchingVariants[0], variants: matchingVariants });
+                  } else {
+                    used.add(iter._id);
+                    groupedItems.push({ item: iter, variants: [] });
+                  }
+                }
+
+                return groupedItems.map(({ item, variants }) => {
+                  const hasVariants = variants.length > 1;
+                  const displayName = hasVariants ? item.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() : item.name;
+                  const halfVariant = hasVariants ? variants.find(v => v.name.includes('(Half)')) : null;
+                  const fullVariant = hasVariants ? variants.find(v => v.name.includes('(Full)')) : null;
+
+                  return (
+                    <div key={item._id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-muted flex items-center justify-center text-lg">🍽️</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold text-sm truncate">{displayName}</h3>
+                          {item.is_veg ? (
+                            <span className="w-3.5 h-3.5 rounded-sm border-2 border-green-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-green-500" /></span>
+                          ) : (
+                            <span className="w-3.5 h-3.5 rounded-sm border-2 border-red-500 flex items-center justify-center shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {hasVariants ? `Half: ₹${halfVariant?.price} · Full: ₹${fullVariant?.price}` : `₹${item.price}`} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}
+                        </p>
+                        {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
+                      </div>
+                      <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => {
+                          setEditingItem(item._id);
+                          setItemForm({
+                            name: displayName,
+                            description: item.description || '',
+                            price: hasVariants ? '' : String(item.price),
+                            category_id: item.category_id,
+                            image_url: item.image_url || '',
+                            is_veg: item.is_veg ?? true,
+                            is_available: item.is_available ?? true
+                          });
+                          setHasVariants(hasVariants);
+                          setHalfPrice(halfVariant ? String(halfVariant.price) : '');
+                          setFullPrice(fullVariant ? String(fullVariant.price) : '');
+                          setEditingVariantIds({
+                            half: halfVariant?._id || null,
+                            full: fullVariant?._id || null
+                          });
+                          setShowItemForm(true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={async () => {
+                          if (!confirm(`Delete ${displayName}?`)) return;
+                          if (hasVariants) {
+                            if (halfVariant) await deleteItem(halfVariant._id);
+                            if (fullVariant) await deleteItem(fullVariant._id);
+                          } else {
+                            await deleteItem(item._id);
+                          }
+                        }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">₹{item.price} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}</p>
-                    {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
-                  </div>
-                  <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-primary/10" onClick={() => {
-                      const baseName = item.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
-                      const isVariant = item.name.includes('(Half)') || item.name.includes('(Full)');
-                      const matchingVariants = isVariant ? items.filter(i =>
-                        i.category_id === item.category_id &&
-                        i.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() === baseName &&
-                        (i.name.includes('(Half)') || i.name.includes('(Full)'))
-                      ) : [];
-                      const halfItem = matchingVariants.find(v => v.name.includes('(Half)'));
-                      const fullItem = matchingVariants.find(v => v.name.includes('(Full)'));
-                      setEditingItem(item._id);
-                      setItemForm({ name: isVariant ? baseName : item.name, description: item.description || '', price: isVariant ? '' : String(item.price), category_id: item.category_id, image_url: item.image_url || '', is_veg: item.is_veg ?? true, is_available: item.is_available ?? true });
-                      setHasVariants(isVariant && matchingVariants.length > 1);
-                      setHalfPrice(halfItem ? String(halfItem.price) : '');
-                      setFullPrice(fullItem ? String(fullItem.price) : '');
-                      setShowItemForm(true);
-                    }}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => deleteItem(item._id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                  );
+                });
+              })()}
               {items.length === 0 && (
                 <div className="sm:col-span-2 xl:col-span-3 text-center py-16">
                   <ChefHat className="w-12 h-12 mx-auto text-muted-foreground/20 mb-3" />
