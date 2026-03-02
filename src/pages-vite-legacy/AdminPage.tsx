@@ -77,9 +77,13 @@ const AdminPage = () => {
   const [hasPizzaSizes, setHasPizzaSizes] = useState(false);
   const [regularPrice, setRegularPrice] = useState('');
   const [mediumPrice, setMediumPrice] = useState('');
+  const [hasBurgerSizes, setHasBurgerSizes] = useState(false);
+  const [doublePattyPrice, setDoublePattyPrice] = useState('');
+  const [regularBurgerPrice, setRegularBurgerPrice] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editingVariantIds, setEditingVariantIds] = useState<{ half: string | null, full: string | null }>({ half: null, full: null });
   const [editingPizzaVariantIds, setEditingPizzaVariantIds] = useState<{ regular: string | null, medium: string | null }>({ regular: null, medium: null });
+  const [editingBurgerVariantIds, setEditingBurgerVariantIds] = useState<{ double: string | null, regular: string | null }>({ double: null, regular: null });
   const [showItemForm, setShowItemForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,7 +172,7 @@ const AdminPage = () => {
           toast.error('Both Half and Full prices are required');
           return;
         }
-        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
+        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim();
         const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
 
         // Handling variants sequentially. Pass the explicit editing variant ID if we are grouping edits
@@ -180,12 +184,23 @@ const AdminPage = () => {
           toast.error('Both Regular and Medium prices are required');
           return;
         }
-        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
+        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim();
         const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
 
         await api.saveProduct(editingPizzaVariantIds.regular, { ...basePayload, name: `${baseName} (Regular)`, price: parseFloat(regularPrice) });
         await api.saveProduct(editingPizzaVariantIds.medium, { ...basePayload, name: `${baseName} (Medium)`, price: parseFloat(mediumPrice) });
         toast.success(editingItem ? 'Sizes updated' : 'Item added with Regular/Medium sizes');
+      } else if (hasBurgerSizes) {
+        if (!doublePattyPrice || !regularBurgerPrice) {
+          toast.error('Both Double Patty and Regular prices are required');
+          return;
+        }
+        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim();
+        const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
+
+        await api.saveProduct(editingBurgerVariantIds.double, { ...basePayload, name: `${baseName} (Double Patty)`, price: parseFloat(doublePattyPrice) });
+        await api.saveProduct(editingBurgerVariantIds.regular, { ...basePayload, name: `${baseName} (Regular)`, price: parseFloat(regularBurgerPrice) });
+        toast.success(editingItem ? 'Sizes updated' : 'Item added with Double Patty/Regular sizes');
       } else {
         if (!itemForm.price) { toast.error('Price is required'); return; }
         const payload = { ...itemForm, price: parseFloat(itemForm.price) };
@@ -199,9 +214,13 @@ const AdminPage = () => {
       setHasPizzaSizes(false);
       setRegularPrice('');
       setMediumPrice('');
+      setHasBurgerSizes(false);
+      setDoublePattyPrice('');
+      setRegularBurgerPrice('');
       setEditingItem(null);
       setEditingVariantIds({ half: null, full: null });
       setEditingPizzaVariantIds({ regular: null, medium: null });
+      setEditingBurgerVariantIds({ double: null, regular: null });
       setShowItemForm(false);
       fetchItems();
     } catch (err: any) {
@@ -485,7 +504,7 @@ const AdminPage = () => {
         {/* Items tab */}
         {tab === 'items' && (
           <div className="space-y-6">
-            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); setEditingVariantIds({ half: null, full: null }); setHasPizzaSizes(false); setEditingPizzaVariantIds({ regular: null, medium: null }); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
+            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); setEditingVariantIds({ half: null, full: null }); setHasPizzaSizes(false); setEditingPizzaVariantIds({ regular: null, medium: null }); setHasBurgerSizes(false); setEditingBurgerVariantIds({ double: null, regular: null }); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
               {showItemForm ? 'Hide Form' : <><Plus className="w-4 h-4 mr-1.5" /> Add Item</>}
             </Button>
             {showItemForm && (
@@ -499,7 +518,7 @@ const AdminPage = () => {
                     <Label className="text-xs text-muted-foreground">Name *</Label>
                     <Input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Chicken Biryani" className="mt-1 h-11 rounded-xl bg-muted/30" />
                   </div>
-                  {!hasVariants && !hasPizzaSizes ? (
+                  {!hasVariants && !hasPizzaSizes && !hasBurgerSizes ? (
                     <div>
                       <Label className="text-xs text-muted-foreground">Price (₹) *</Label>
                       <Input type="number" value={itemForm.price} onChange={e => setItemForm(p => ({ ...p, price: e.target.value }))} placeholder="299" className="mt-1 h-11 rounded-xl bg-muted/30" />
@@ -515,7 +534,7 @@ const AdminPage = () => {
                         <Input type="number" value={fullPrice} onChange={e => setFullPrice(e.target.value)} placeholder="126" className="mt-1 h-11 rounded-xl bg-muted/30" />
                       </div>
                     </div>
-                  ) : (
+                  ) : hasPizzaSizes ? (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs text-muted-foreground">Regular ₹ *</Label>
@@ -524,6 +543,17 @@ const AdminPage = () => {
                       <div>
                         <Label className="text-xs text-muted-foreground">Medium ₹ *</Label>
                         <Input type="number" value={mediumPrice} onChange={e => setMediumPrice(e.target.value)} placeholder="249" className="mt-1 h-11 rounded-xl bg-muted/30" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Double Patty ₹ *</Label>
+                        <Input type="number" value={doublePattyPrice} onChange={e => setDoublePattyPrice(e.target.value)} placeholder="199" className="mt-1 h-11 rounded-xl bg-muted/30" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Regular ₹ *</Label>
+                        <Input type="number" value={regularBurgerPrice} onChange={e => setRegularBurgerPrice(e.target.value)} placeholder="99" className="mt-1 h-11 rounded-xl bg-muted/30" />
                       </div>
                     </div>
                   )}
@@ -551,12 +581,16 @@ const AdminPage = () => {
                   </div>
                   <div className="sm:col-span-2 flex items-center gap-5 flex-wrap py-1">
                     <div className="flex items-center gap-2">
-                      <Switch checked={hasVariants} onCheckedChange={v => { setHasVariants(v); if (v) setHasPizzaSizes(false); if (!v) { setHalfPrice(''); setFullPrice(''); } }} />
+                      <Switch checked={hasVariants} onCheckedChange={v => { setHasVariants(v); if (v) { setHasPizzaSizes(false); setHasBurgerSizes(false); } if (!v) { setHalfPrice(''); setFullPrice(''); } }} />
                       <Label className="text-sm cursor-pointer">Half / Full</Label>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Switch checked={hasPizzaSizes} onCheckedChange={v => { setHasPizzaSizes(v); if (v) setHasVariants(false); if (!v) { setRegularPrice(''); setMediumPrice(''); } }} />
-                      <Label className="text-sm cursor-pointer">Regular / Medium</Label>
+                      <Switch checked={hasPizzaSizes} onCheckedChange={v => { setHasPizzaSizes(v); if (v) { setHasVariants(false); setHasBurgerSizes(false); } if (!v) { setRegularPrice(''); setMediumPrice(''); } }} />
+                      <Label className="text-sm cursor-pointer">Regular / Medium (Pizza)</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={hasBurgerSizes} onCheckedChange={v => { setHasBurgerSizes(v); if (v) { setHasVariants(false); setHasPizzaSizes(false); } if (!v) { setDoublePattyPrice(''); setRegularBurgerPrice(''); } }} />
+                      <Label className="text-sm cursor-pointer">Double Patty / Regular (Burger)</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch checked={itemForm.is_veg} onCheckedChange={v => setItemForm(p => ({ ...p, is_veg: v }))} />
@@ -583,12 +617,12 @@ const AdminPage = () => {
 
                 for (const iter of items) {
                   if (used.has(iter._id)) continue;
-                  const baseName = iter.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
+                  const baseName = iter.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim();
 
                   const matchingVariants = items.filter(i =>
                     i.category_id === iter.category_id &&
-                    i.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim() === baseName &&
-                    (i.name.includes('(Half)') || i.name.includes('(Full)') || i.name.includes('(Regular)') || i.name.includes('(Medium)'))
+                    i.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim() === baseName &&
+                    (i.name.includes('(Half)') || i.name.includes('(Full)') || i.name.includes('(Regular)') || i.name.includes('(Medium)') || i.name.includes('(Double Patty)'))
                   );
 
                   if (matchingVariants.length > 1) {
@@ -602,14 +636,17 @@ const AdminPage = () => {
 
                 return groupedItems.map(({ item, variants }) => {
                   const isHalfFull = variants.some(v => v.name.includes('(Half)') || v.name.includes('(Full)'));
-                  const isPizzaSize = variants.some(v => v.name.includes('(Regular)') || v.name.includes('(Medium)'));
-                  const hasVariants = isHalfFull || isPizzaSize;
-                  const displayName = hasVariants ? item.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim() : item.name;
+                  const isBurgerSize = variants.some(v => v.name.includes('(Double Patty)'));
+                  const isPizzaSize = variants.some(v => v.name.includes('(Medium)')) || (variants.some(v => v.name.includes('(Regular)')) && !isBurgerSize && !isHalfFull);
+                  const hasVariants = isHalfFull || isPizzaSize || isBurgerSize;
+                  const displayName = hasVariants ? item.name.replace(/\s*\((Half|Full|Regular|Medium|Double Patty)\)\s*/i, '').trim() : item.name;
 
                   const halfVariant = isHalfFull ? variants.find(v => v.name.includes('(Half)')) : null;
                   const fullVariant = isHalfFull ? variants.find(v => v.name.includes('(Full)')) : null;
-                  const regularVariant = isPizzaSize ? variants.find(v => v.name.includes('(Regular)')) : null;
-                  const mediumVariant = isPizzaSize ? variants.find(v => v.name.includes('(Medium)')) : null;
+                  const pizzaRegularVariant = isPizzaSize ? variants.find(v => v.name.includes('(Regular)')) : null;
+                  const pizzaMediumVariant = isPizzaSize ? variants.find(v => v.name.includes('(Medium)')) : null;
+                  const doublePattyVariant = isBurgerSize ? variants.find(v => v.name.includes('(Double Patty)')) : null;
+                  const burgerRegularVariant = isBurgerSize ? variants.find(v => v.name.includes('(Regular)')) : null;
 
                   return (
                     <div key={item._id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
@@ -630,7 +667,7 @@ const AdminPage = () => {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {isHalfFull ? `Half: ₹${halfVariant?.price} · Full: ₹${fullVariant?.price}` : isPizzaSize ? `Regular: ₹${regularVariant?.price} · Medium: ₹${mediumVariant?.price}` : `₹${item.price}`} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}
+                          {isHalfFull ? `Half: ₹${halfVariant?.price} · Full: ₹${fullVariant?.price}` : isPizzaSize ? `Regular: ₹${pizzaRegularVariant?.price} · Medium: ₹${pizzaMediumVariant?.price}` : isBurgerSize ? `Double Patty: ₹${doublePattyVariant?.price} · Regular: ₹${burgerRegularVariant?.price}` : `₹${item.price}`} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}
                         </p>
                         {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
                       </div>
@@ -654,11 +691,18 @@ const AdminPage = () => {
                             full: fullVariant?._id || null
                           });
                           setHasPizzaSizes(isPizzaSize);
-                          setRegularPrice(regularVariant ? String(regularVariant.price) : '');
-                          setMediumPrice(mediumVariant ? String(mediumVariant.price) : '');
+                          setRegularPrice(pizzaRegularVariant ? String(pizzaRegularVariant.price) : '');
+                          setMediumPrice(pizzaMediumVariant ? String(pizzaMediumVariant.price) : '');
                           setEditingPizzaVariantIds({
-                            regular: regularVariant?._id || null,
-                            medium: mediumVariant?._id || null
+                            regular: pizzaRegularVariant?._id || null,
+                            medium: pizzaMediumVariant?._id || null
+                          });
+                          setHasBurgerSizes(isBurgerSize);
+                          setDoublePattyPrice(doublePattyVariant ? String(doublePattyVariant.price) : '');
+                          setRegularBurgerPrice(burgerRegularVariant ? String(burgerRegularVariant.price) : '');
+                          setEditingBurgerVariantIds({
+                            double: doublePattyVariant?._id || null,
+                            regular: burgerRegularVariant?._id || null
                           });
                           setShowItemForm(true);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -671,8 +715,11 @@ const AdminPage = () => {
                             if (halfVariant) await deleteItem(halfVariant._id);
                             if (fullVariant) await deleteItem(fullVariant._id);
                           } else if (isPizzaSize) {
-                            if (regularVariant) await deleteItem(regularVariant._id);
-                            if (mediumVariant) await deleteItem(mediumVariant._id);
+                            if (pizzaRegularVariant) await deleteItem(pizzaRegularVariant._id);
+                            if (pizzaMediumVariant) await deleteItem(pizzaMediumVariant._id);
+                          } else if (isBurgerSize) {
+                            if (doublePattyVariant) await deleteItem(doublePattyVariant._id);
+                            if (burgerRegularVariant) await deleteItem(burgerRegularVariant._id);
                           } else {
                             await deleteItem(item._id);
                           }
