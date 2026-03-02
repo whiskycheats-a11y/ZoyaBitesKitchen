@@ -74,8 +74,12 @@ const AdminPage = () => {
   const [hasVariants, setHasVariants] = useState(false);
   const [halfPrice, setHalfPrice] = useState('');
   const [fullPrice, setFullPrice] = useState('');
+  const [hasPizzaSizes, setHasPizzaSizes] = useState(false);
+  const [regularPrice, setRegularPrice] = useState('');
+  const [mediumPrice, setMediumPrice] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editingVariantIds, setEditingVariantIds] = useState<{ half: string | null, full: string | null }>({ half: null, full: null });
+  const [editingPizzaVariantIds, setEditingPizzaVariantIds] = useState<{ regular: string | null, medium: string | null }>({ regular: null, medium: null });
   const [showItemForm, setShowItemForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,13 +168,24 @@ const AdminPage = () => {
           toast.error('Both Half and Full prices are required');
           return;
         }
-        const baseName = itemForm.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
+        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
         const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
 
         // Handling variants sequentially. Pass the explicit editing variant ID if we are grouping edits
         await api.saveProduct(editingVariantIds.half, { ...basePayload, name: `${baseName} (Half)`, price: parseFloat(halfPrice) });
         await api.saveProduct(editingVariantIds.full, { ...basePayload, name: `${baseName} (Full)`, price: parseFloat(fullPrice) });
         toast.success(editingItem ? 'Variants updated' : 'Item added with Half/Full variants');
+      } else if (hasPizzaSizes) {
+        if (!regularPrice || !mediumPrice) {
+          toast.error('Both Regular and Medium prices are required');
+          return;
+        }
+        const baseName = itemForm.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
+        const basePayload = { description: itemForm.description, category_id: itemForm.category_id, image_url: itemForm.image_url, is_veg: itemForm.is_veg, is_available: itemForm.is_available };
+
+        await api.saveProduct(editingPizzaVariantIds.regular, { ...basePayload, name: `${baseName} (Regular)`, price: parseFloat(regularPrice) });
+        await api.saveProduct(editingPizzaVariantIds.medium, { ...basePayload, name: `${baseName} (Medium)`, price: parseFloat(mediumPrice) });
+        toast.success(editingItem ? 'Sizes updated' : 'Item added with Regular/Medium sizes');
       } else {
         if (!itemForm.price) { toast.error('Price is required'); return; }
         const payload = { ...itemForm, price: parseFloat(itemForm.price) };
@@ -181,8 +196,12 @@ const AdminPage = () => {
       setHasVariants(false);
       setHalfPrice('');
       setFullPrice('');
+      setHasPizzaSizes(false);
+      setRegularPrice('');
+      setMediumPrice('');
       setEditingItem(null);
       setEditingVariantIds({ half: null, full: null });
+      setEditingPizzaVariantIds({ regular: null, medium: null });
       setShowItemForm(false);
       fetchItems();
     } catch (err: any) {
@@ -466,7 +485,7 @@ const AdminPage = () => {
         {/* Items tab */}
         {tab === 'items' && (
           <div className="space-y-6">
-            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); setEditingVariantIds({ half: null, full: null }); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
+            <Button onClick={() => { setShowItemForm(!showItemForm); setEditingItem(null); setEditingVariantIds({ half: null, full: null }); setHasPizzaSizes(false); setEditingPizzaVariantIds({ regular: null, medium: null }); }} className={showItemForm ? 'rounded-xl' : 'btn-premium rounded-xl'}>
               {showItemForm ? 'Hide Form' : <><Plus className="w-4 h-4 mr-1.5" /> Add Item</>}
             </Button>
             {showItemForm && (
@@ -480,12 +499,12 @@ const AdminPage = () => {
                     <Label className="text-xs text-muted-foreground">Name *</Label>
                     <Input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Chicken Biryani" className="mt-1 h-11 rounded-xl bg-muted/30" />
                   </div>
-                  {!hasVariants ? (
+                  {!hasVariants && !hasPizzaSizes ? (
                     <div>
                       <Label className="text-xs text-muted-foreground">Price (₹) *</Label>
                       <Input type="number" value={itemForm.price} onChange={e => setItemForm(p => ({ ...p, price: e.target.value }))} placeholder="299" className="mt-1 h-11 rounded-xl bg-muted/30" />
                     </div>
-                  ) : (
+                  ) : hasVariants ? (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs text-muted-foreground">Half ₹ *</Label>
@@ -494,6 +513,17 @@ const AdminPage = () => {
                       <div>
                         <Label className="text-xs text-muted-foreground">Full ₹ *</Label>
                         <Input type="number" value={fullPrice} onChange={e => setFullPrice(e.target.value)} placeholder="126" className="mt-1 h-11 rounded-xl bg-muted/30" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Regular ₹ *</Label>
+                        <Input type="number" value={regularPrice} onChange={e => setRegularPrice(e.target.value)} placeholder="149" className="mt-1 h-11 rounded-xl bg-muted/30" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Medium ₹ *</Label>
+                        <Input type="number" value={mediumPrice} onChange={e => setMediumPrice(e.target.value)} placeholder="249" className="mt-1 h-11 rounded-xl bg-muted/30" />
                       </div>
                     </div>
                   )}
@@ -521,8 +551,12 @@ const AdminPage = () => {
                   </div>
                   <div className="sm:col-span-2 flex items-center gap-5 flex-wrap py-1">
                     <div className="flex items-center gap-2">
-                      <Switch checked={hasVariants} onCheckedChange={v => { setHasVariants(v); if (!v) { setHalfPrice(''); setFullPrice(''); } }} />
+                      <Switch checked={hasVariants} onCheckedChange={v => { setHasVariants(v); if (v) setHasPizzaSizes(false); if (!v) { setHalfPrice(''); setFullPrice(''); } }} />
                       <Label className="text-sm cursor-pointer">Half / Full</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={hasPizzaSizes} onCheckedChange={v => { setHasPizzaSizes(v); if (v) setHasVariants(false); if (!v) { setRegularPrice(''); setMediumPrice(''); } }} />
+                      <Label className="text-sm cursor-pointer">Regular / Medium</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch checked={itemForm.is_veg} onCheckedChange={v => setItemForm(p => ({ ...p, is_veg: v }))} />
@@ -549,12 +583,12 @@ const AdminPage = () => {
 
                 for (const iter of items) {
                   if (used.has(iter._id)) continue;
-                  const baseName = iter.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim();
+                  const baseName = iter.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim();
 
                   const matchingVariants = items.filter(i =>
                     i.category_id === iter.category_id &&
-                    i.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() === baseName &&
-                    (i.name.includes('(Half)') || i.name.includes('(Full)'))
+                    i.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim() === baseName &&
+                    (i.name.includes('(Half)') || i.name.includes('(Full)') || i.name.includes('(Regular)') || i.name.includes('(Medium)'))
                   );
 
                   if (matchingVariants.length > 1) {
@@ -567,10 +601,15 @@ const AdminPage = () => {
                 }
 
                 return groupedItems.map(({ item, variants }) => {
-                  const hasVariants = variants.length > 1;
-                  const displayName = hasVariants ? item.name.replace(/\s*\((Half|Full)\)\s*/i, '').trim() : item.name;
-                  const halfVariant = hasVariants ? variants.find(v => v.name.includes('(Half)')) : null;
-                  const fullVariant = hasVariants ? variants.find(v => v.name.includes('(Full)')) : null;
+                  const isHalfFull = variants.some(v => v.name.includes('(Half)') || v.name.includes('(Full)'));
+                  const isPizzaSize = variants.some(v => v.name.includes('(Regular)') || v.name.includes('(Medium)'));
+                  const hasVariants = isHalfFull || isPizzaSize;
+                  const displayName = hasVariants ? item.name.replace(/\s*\((Half|Full|Regular|Medium)\)\s*/i, '').trim() : item.name;
+
+                  const halfVariant = isHalfFull ? variants.find(v => v.name.includes('(Half)')) : null;
+                  const fullVariant = isHalfFull ? variants.find(v => v.name.includes('(Full)')) : null;
+                  const regularVariant = isPizzaSize ? variants.find(v => v.name.includes('(Regular)')) : null;
+                  const mediumVariant = isPizzaSize ? variants.find(v => v.name.includes('(Medium)')) : null;
 
                   return (
                     <div key={item._id} className="flex items-center gap-3 bg-card rounded-xl p-3 sm:p-4 border border-border/50 hover:border-primary/20 transition-all group">
@@ -591,7 +630,7 @@ const AdminPage = () => {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {hasVariants ? `Half: ₹${halfVariant?.price} · Full: ₹${fullVariant?.price}` : `₹${item.price}`} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}
+                          {isHalfFull ? `Half: ₹${halfVariant?.price} · Full: ₹${fullVariant?.price}` : isPizzaSize ? `Regular: ₹${regularVariant?.price} · Medium: ₹${mediumVariant?.price}` : `₹${item.price}`} · {categories.find(c => c._id === item.category_id)?.name || 'N/A'}
                         </p>
                         {!item.is_available && <span className="text-[10px] text-destructive font-medium">Unavailable</span>}
                       </div>
@@ -607,12 +646,19 @@ const AdminPage = () => {
                             is_veg: item.is_veg ?? true,
                             is_available: item.is_available ?? true
                           });
-                          setHasVariants(hasVariants);
+                          setHasVariants(isHalfFull);
                           setHalfPrice(halfVariant ? String(halfVariant.price) : '');
                           setFullPrice(fullVariant ? String(fullVariant.price) : '');
                           setEditingVariantIds({
                             half: halfVariant?._id || null,
                             full: fullVariant?._id || null
+                          });
+                          setHasPizzaSizes(isPizzaSize);
+                          setRegularPrice(regularVariant ? String(regularVariant.price) : '');
+                          setMediumPrice(mediumVariant ? String(mediumVariant.price) : '');
+                          setEditingPizzaVariantIds({
+                            regular: regularVariant?._id || null,
+                            medium: mediumVariant?._id || null
                           });
                           setShowItemForm(true);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -621,9 +667,12 @@ const AdminPage = () => {
                         </Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-destructive" onClick={async () => {
                           if (!confirm(`Delete ${displayName}?`)) return;
-                          if (hasVariants) {
+                          if (isHalfFull) {
                             if (halfVariant) await deleteItem(halfVariant._id);
                             if (fullVariant) await deleteItem(fullVariant._id);
+                          } else if (isPizzaSize) {
+                            if (regularVariant) await deleteItem(regularVariant._id);
+                            if (mediumVariant) await deleteItem(mediumVariant._id);
                           } else {
                             await deleteItem(item._id);
                           }
